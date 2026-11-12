@@ -1,0 +1,20 @@
+services:
+  agent:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MSA_DB_PATH: /app/state/agent.sqlite3
+    volumes:
+      - state:/app/state          # сессии, запуски, трасса: переживают перезапуск контейнера
+      - cache:/app/data/cache     # кеш котировок ISS
+      - ./reports:/app/reports
+      - ./certs:/app/certs:ro     # сертификат НУЦ Минцифры для GigaChat, если нужен
+    restart: unless-stopped
+
+volumes:
+  state:
+  cache:

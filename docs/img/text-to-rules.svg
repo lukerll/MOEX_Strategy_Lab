@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 760" width="1240" font-family="Inter, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9" fill="none" stroke="#888780" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect width="1240" height="760" rx="16" fill="#FFFFFF"/>
+<rect x="40" y="40" width="230" height="86" rx="14" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<text x="155.0" y="78.6" text-anchor="middle" font-size="19" font-weight="600" fill="#3D3D3A">Текст стратегии</text>
+<text x="155.0" y="99.6" text-anchor="middle" font-size="14" fill="#5F5E5A">Обычный русский язык</text>
+<rect x="310" y="40" width="230" height="86" rx="14" fill="#EEEDFE" stroke="#534AB7" stroke-width="1"/>
+<text x="425.0" y="78.6" text-anchor="middle" font-size="19" font-weight="600" fill="#3C3489">GigaChat</text>
+<text x="425.0" y="99.6" text-anchor="middle" font-size="14" fill="#534AB7">Пишет JSON по словарю</text>
+<rect x="580" y="40" width="190" height="86" rx="14" fill="#E1F5EE" stroke="#0F6E56" stroke-width="1"/>
+<text x="675.0" y="78.6" text-anchor="middle" font-size="19" font-weight="600" fill="#085041">Схема</text>
+<text x="675.0" y="99.6" text-anchor="middle" font-size="14" fill="#0F6E56">Типы, границы, поля</text>
+<rect x="810" y="40" width="190" height="86" rx="14" fill="#E1F5EE" stroke="#0F6E56" stroke-width="1"/>
+<text x="905.0" y="78.6" text-anchor="middle" font-size="19" font-weight="600" fill="#085041">Смысл</text>
+<text x="905.0" y="99.6" text-anchor="middle" font-size="14" fill="#0F6E56">Правила без нелепостей</text>
+<rect x="1040" y="40" width="160" height="86" rx="14" fill="#E1F5EE" stroke="#0F6E56" stroke-width="1"/>
+<text x="1120.0" y="78.6" text-anchor="middle" font-size="19" font-weight="600" fill="#085041">Дерево правил</text>
+<text x="1120.0" y="99.6" text-anchor="middle" font-size="14" fill="#0F6E56">Идёт в расчёт</text>
+<path d="M273,83.0 L305,83.0" fill="none" stroke="#888780" stroke-width="1.6" marker-end="url(#a)" stroke-linejoin="round"/>
+<path d="M543,83.0 L575,83.0" fill="none" stroke="#888780" stroke-width="1.6" marker-end="url(#a)" stroke-linejoin="round"/>
+<path d="M773,83.0 L805,83.0" fill="none" stroke="#888780" stroke-width="1.6" marker-end="url(#a)" stroke-linejoin="round"/>
+<path d="M1003,83.0 L1035,83.0" fill="none" stroke="#888780" stroke-width="1.6" marker-end="url(#a)" stroke-linejoin="round"/>
+<rect x="580" y="190" width="420" height="70" rx="14" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<text x="790.0" y="219.9" text-anchor="middle" font-size="17" font-weight="600" fill="#3D3D3A">Ошибка возвращается модели</text>
+<text x="790.0" y="240.9" text-anchor="middle" font-size="14" fill="#5F5E5A">До двух попыток исправить</text>
+<path d="M675,129 L675,186" fill="none" stroke="#888780" stroke-width="1.6" stroke-dasharray="5 5" marker-end="url(#a)" stroke-linejoin="round"/>
+<path d="M905,129 L905,186" fill="none" stroke="#888780" stroke-width="1.6" stroke-dasharray="5 5" marker-end="url(#a)" stroke-linejoin="round"/>
+<path d="M576,225 L470,225 L470,131" fill="none" stroke="#888780" stroke-width="1.6" stroke-dasharray="5 5" marker-end="url(#a)" stroke-linejoin="round"/>
+<rect x="40" y="190" width="230" height="70" rx="14" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<text x="155.0" y="219.9" text-anchor="middle" font-size="17" font-weight="600" fill="#3D3D3A">Вопрос человеку</text>
+<text x="155.0" y="240.9" text-anchor="middle" font-size="14" fill="#5F5E5A">С готовыми ответами</text>
+<path d="M380,129 L380,225 L275,225" fill="none" stroke="#888780" stroke-width="1.6" stroke-dasharray="5 5" marker-end="url(#a)" stroke-linejoin="round"/>
+<text x="155" y="284" text-anchor="middle" font-size="13" font-weight="400" fill="#5F5E5A">Если две попытки не помогли</text>
+<text x="40" y="338" text-anchor="start" font-size="20" font-weight="600" fill="#1F1F1D">Пример</text>
+<rect x="40" y="356" width="1160" height="58" rx="12" fill="#FAFAF7" stroke="#D3D1C7"/>
+<text x="620" y="391" text-anchor="middle" font-size="16" font-weight="400" fill="#3D3D3A">«Покупаю, когда цена выше средней за 200 дней и RSI ниже 40. Продаю при RSI выше 70, стоп 7%»</text>
+<rect x="150" y="452" width="150" height="56" rx="14" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<text x="225.0" y="485.4" text-anchor="middle" font-size="17" font-weight="600" fill="#3D3D3A">вход</text>
+<rect x="150" y="548" width="150" height="56" rx="14" fill="#E1F5EE" stroke="#0F6E56" stroke-width="1"/>
+<text x="225.0" y="571.4" text-anchor="middle" font-size="17" font-weight="600" fill="#085041">all</text>
+<text x="225.0" y="591.4" text-anchor="middle" font-size="13" fill="#0F6E56">оба условия</text>
+<rect x="40" y="660" width="170" height="72" rx="14" fill="#E1F5EE" stroke="#0F6E56" stroke-width="1"/>
+<text x="125.0" y="681.1" text-anchor="middle" font-size="16" font-weight="600" fill="#085041">compare  &gt;</text>
+<text x="125.0" y="701.1" text-anchor="middle" font-size="13" fill="#0F6E56">цена</text>
+<text x="125.0" y="721.1" text-anchor="middle" font-size="13" fill="#0F6E56">SMA(200)</text>
+<rect x="240" y="660" width="170" height="72" rx="14" fill="#E1F5EE" stroke="#0F6E56" stroke-width="1"/>
+<text x="325.0" y="681.1" text-anchor="middle" font-size="16" font-weight="600" fill="#085041">compare  &lt;</text>
+<text x="325.0" y="701.1" text-anchor="middle" font-size="13" fill="#0F6E56">RSI(14)</text>
+<text x="325.0" y="721.1" text-anchor="middle" font-size="13" fill="#0F6E56">40</text>
+<path d="M225,511 L225,544" fill="none" stroke="#888780" stroke-width="1.6" marker-end="url(#a)" stroke-linejoin="round"/>
+<path d="M195,607 L125,656" fill="none" stroke="#888780" stroke-width="1.6" marker-end="url(#a)" stroke-linejoin="round"/>
+<path d="M255,607 L325,656" fill="none" stroke="#888780" stroke-width="1.6" marker-end="url(#a)" stroke-linejoin="round"/>
+<rect x="560" y="452" width="150" height="56" rx="14" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<text x="635.0" y="485.4" text-anchor="middle" font-size="17" font-weight="600" fill="#3D3D3A">выход</text>
+<rect x="550" y="548" width="170" height="72" rx="14" fill="#E1F5EE" stroke="#0F6E56" stroke-width="1"/>
+<text x="635.0" y="569.1" text-anchor="middle" font-size="16" font-weight="600" fill="#085041">compare  &gt;</text>
+<text x="635.0" y="589.1" text-anchor="middle" font-size="13" fill="#0F6E56">RSI(14)</text>
+<text x="635.0" y="609.1" text-anchor="middle" font-size="13" fill="#0F6E56">70</text>
+<path d="M635,511 L635,544" fill="none" stroke="#888780" stroke-width="1.6" marker-end="url(#a)" stroke-linejoin="round"/>
+<rect x="880" y="452" width="150" height="56" rx="14" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<text x="955.0" y="485.4" text-anchor="middle" font-size="17" font-weight="600" fill="#3D3D3A">защита</text>
+<rect x="850" y="548" width="210" height="72" rx="14" fill="#E1F5EE" stroke="#0F6E56" stroke-width="1"/>
+<text x="955.0" y="579.1" text-anchor="middle" font-size="16" font-weight="600" fill="#085041">stop_loss_pct</text>
+<text x="955.0" y="599.1" text-anchor="middle" font-size="13" fill="#0F6E56">7</text>
+<path d="M955,511 L955,544" fill="none" stroke="#888780" stroke-width="1.6" marker-end="url(#a)" stroke-linejoin="round"/>
+<text x="955" y="652" text-anchor="middle" font-size="13" font-weight="400" fill="#5F5E5A">Стопы лежат отдельно</text>
+<text x="955" y="670" text-anchor="middle" font-size="13" font-weight="400" fill="#5F5E5A">от сигналов</text>
+</svg>

@@ -1,0 +1,33 @@
+"""Отчёт по запуску: HTML, CSV сделок и кривой капитала, JSON."""
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends
+from fastapi.responses import HTMLResponse, Response
+
+from ...reporting.export import equity_csv, save_report, trades_csv
+from ...reporting.report_builder import build_html
+from ..deps import Services, get_run_or_404, services
+
+router = APIRouter(prefix="/api/runs", tags=["reports"])
+
+
+@router.get("/{run_id}/report.html", response_class=HTMLResponse)
+def report_html(run_id: str, download: bool = False, svc: Services = Depends(services)) -> HTMLResponse:
+    res = get_run_or_404(svc, run_id)
+    save_report(res, svc.settings.path("app.reports_dir"))
+    headers = {"Content-Disposition": f'attachment; filename="{run_id}_{res.spec.ticker}.html"'} if download else {}
+    return HTMLResponse(build_html(res), headers=headers)
+
+
+@router.get("/{run_id}/trades.csv")
+def report_trades(run_id: str, svc: Services = Depends(services)) -> Response:
+    res = get_run_or_404(svc, run_id)
+    return Response("﻿" + trades_csv(res), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{run_id}_trades.csv"'})
+
+
+@router.get("/{run_id}/equity.csv")
+def report_equity(run_id: str, svc: Services = Depends(services)) -> Response:
+    res = get_run_or_404(svc, run_id)
+    return Response("﻿" + equity_csv(res), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{run_id}_equity.csv"'})

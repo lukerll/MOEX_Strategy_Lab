@@ -1,0 +1,57 @@
+# Правило курса: провайдер и модель задаются здесь, а не в коде.
+# Один OpenAI-совместимый клиент, разные base_url и ключи.
+# Активный провайдер: `active` или переменная окружения MSA_PROVIDER.
+# fallback: если активный провайдер упал (лимиты, 5xx, таймаут, нет ключа), агент идёт по цепочке.
+# Провайдеры без ключа пропускаются. Если не ответил никто, агент честно говорит, что модель
+# недоступна: стратегию без модели он не формализует.
+
+active: gigachat
+fallback: [openrouter, groq, zai]
+
+providers:
+  gigachat:
+    kind: openai_compatible
+    base_url: https://gigachat.devices.sberbank.ru/api/v1
+    model: GigaChat-2-Max          # GigaChat-2 (Lite) дешевле, но хуже собирает вложенные правила
+    auth: gigachat_oauth           # ключ авторизации меняется на access token на 30 минут
+    oauth_url: https://ngw.devices.sberbank.ru:9443/api/v2/oauth
+    oauth_scope: GIGACHAT_API_PERS # для юрлиц GIGACHAT_API_B2B или GIGACHAT_API_CORP
+    api_key_env: GIGACHAT_AUTH_KEY
+    tools_style: functions         # GigaChat принимает functions/function_call
+    verify_ssl: true
+    ca_bundle_env: GIGACHAT_CA_BUNDLE   # путь к russian_trusted_root_ca.cer, см. README
+    timeout_s: 30                  # ответ модели; соединение отдельно, не дольше 8 с
+    price_rub_per_1k_tokens: 0.65   # 1 950 ₽ за 3 млн токенов Max; во Freemium 25 млн бесплатно
+
+  openrouter:
+    kind: openai_compatible
+    base_url: https://openrouter.ai/api/v1
+    model: qwen/qwen3-235b-a22b:free
+    api_key_env: OPENROUTER_API_KEY
+    tools_style: tools
+    price_rub_per_1k_tokens: 0.0
+
+  groq:
+    kind: openai_compatible
+    base_url: https://api.groq.com/openai/v1
+    model: llama-3.3-70b-versatile
+    api_key_env: GROQ_API_KEY
+    tools_style: tools
+    price_rub_per_1k_tokens: 0.0
+
+  zai:
+    kind: openai_compatible
+    base_url: https://api.z.ai/api/paas/v4
+    model: glm-4.5-flash
+    api_key_env: ZAI_API_KEY
+    tools_style: tools
+    price_rub_per_1k_tokens: 0.0
+
+  ollama:
+    kind: openai_compatible
+    base_url: http://localhost:11434/v1
+    model: qwen3:8b
+    api_key_env: ""
+    tools_style: tools
+    timeout_s: 120
+    price_rub_per_1k_tokens: 0.0

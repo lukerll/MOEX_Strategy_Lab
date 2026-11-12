@@ -1,0 +1,46 @@
+# Основные настройки сервиса. Любой ключ можно переопределить переменной окружения
+# (см. src/moex_strategy_agent/config.py, раздел ENV_OVERRIDES).
+
+app:
+  db_path: data/agent.sqlite3
+  reports_dir: reports
+  logs_dir: logs
+  api_key: ""            # если задан, все /api/* требуют заголовок X-API-Key
+  rate_limit_per_minute: 30
+
+data:
+  mode: moex             # moex: живой ISS с кешем; demo: синтетика для офлайн-демо и eval
+  cache_dir: data/cache
+  demo_dir: data/demo
+  default_board: TQBR
+  request_timeout_s: 15
+  max_retries: 3
+  min_period_days: 60    # меньше 60 торговых дней тестировать бессмысленно
+  max_period_years: 15
+
+backtest:
+  default_cash: 100000
+  default_commission: 0.0005   # 0,05% от оборота с каждой стороны
+  default_slippage: 0.0005     # 0,05% к цене покупки (модель спреда)
+  reconciliation_rel_tol: 0.000001
+  sensitivity_grid: true
+
+news:
+  # от надёжных к хрупким; google_news в России работает только через VPN, поэтому кешируется:
+  # scripts/prefetch_news.py заполняет кеш заранее. В demo-режиме используется data/demo/news.json
+  sources: [cbr_keyrate, google_news, moex_sitenews, cbr_rss]
+  window_days_before: 2
+  window_days_after: 1
+  move_threshold_pct: 4.0
+  move_sigma: 3.0
+  max_events: 8
+
+agent:
+  max_steps: 12           # шагов графа на один запрос
+  max_tool_calls: 10
+  max_llm_calls: 6
+  max_tokens_per_request: 24000
+  max_cost_rub_per_request: 10.0   # GigaChat-2-Max: формализация и текст обычно 2–4 ₽
+  history_keep_messages: 8      # остальное сжимается в summary
+  narrative_retries: 1          # Reflexion: одна попытка переписать текст с выдуманными числами
+  formalize_repairs: 2          # сколько раз вернуть модели ошибки в правилах на исправление

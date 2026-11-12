@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+<title>MOEX Strategy Agent</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23000a06'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%237affb4'/%3E%3C/svg%3E">
+<meta name="color-scheme" content="dark light">
+<script>
+  // тема и свёрнутая панель ставятся до отрисовки, чтобы ничего не мигало
+  (function () { var d = document.documentElement; try { var t = localStorage.getItem("msa_theme") || "dark";
+    if (t === "system") t = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    d.dataset.theme = t; if (localStorage.getItem("msa_rail") === "1") d.classList.add("rail"); } catch (e) { d.dataset.theme = "dark"; } })();
+</script>
+<link rel="stylesheet" href="/static/app.css?v=26">
+</head>
+<body class="fresh">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 8v4l2.5 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 4.5l2.3 4.7 5.2.8-3.8 3.7.9 5.1L12 16.4l-4.6 2.4.9-5.1-3.8-3.7 5.2-.8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+  <symbol id="i-star-fill" viewBox="0 0 24 24"><path d="M12 4.5l2.3 4.7 5.2.8-3.8 3.7.9 5.1L12 16.4l-4.6 2.4.9-5.1-3.8-3.7 5.2-.8z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9.8 9.6a2.3 2.3 0 1 1 3.2 2.1c-.6.3-1 .8-1 1.5v.4M12 16.6h.01" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-side" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9.5 5v14" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-trend" viewBox="0 0 24 24"><path d="M4 17l5-5 4 3 7-8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 14l3-3 2 2 3-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.5v5.5M12 16.4h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 11v5M12 8h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M8 10l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<header class="top">
+  <button class="icon-btn" id="sideToggle" type="button" aria-controls="side" aria-expanded="true" aria-label="Свернуть боковую панель" data-tip="Свернуть панель">
+    <svg><use href="#i-side"/></svg></button>
+  <a class="brand" href="/" id="brand" title="Новый анализ"><span class="dot" aria-hidden="true"></span><span class="full">MOEX Strategy Agent</span><span class="short">MOEX Agent</span></a>
+</header>
+
+<div class="shell">
+  <aside class="side" id="side" aria-label="Навигация">
+    <div class="side-top">
+      <button class="side-btn primary" id="newBtn" type="button" data-tip="Новый анализ"><svg><use href="#i-plus"/></svg><span class="lbl">Новый анализ</span></button>
+      <button class="side-btn" type="button" data-list="hist" aria-pressed="true" data-tip="История"><svg><use href="#i-clock"/></svg><span class="lbl">История</span><span class="cnt lbl" id="histCnt">0</span></button>
+      <button class="side-btn" type="button" data-list="fav" aria-pressed="false" data-tip="Избранное"><svg><use href="#i-star"/></svg><span class="lbl">Избранное</span><span class="cnt lbl" id="favCnt">0</span></button>
+    </div>
+    <div class="side-mid">
+      <div class="side-cap" id="listCap">Последние запросы</div>
+      <div class="side-list" id="sideList"><p class="side-empty">Загружаю…</p></div>
+    </div>
+    <div class="side-bot">
+      <button class="side-btn" id="settingsBtn" type="button" data-tip="Настройки"><svg><use href="#i-gear"/></svg><span class="lbl">Настройки</span></button>
+      <button class="side-btn" id="howBtn" type="button" data-tip="Как это работает"><svg><use href="#i-help"/></svg><span class="lbl">Как это работает</span></button>
+    </div>
+  </aside>
+  <div class="side-scrim" id="sideScrim" hidden></div>
+
+  <main class="work" aria-label="Диалог с агентом">
+    <div class="feed" id="feed">
+      <div class="thread" id="chatLog" aria-live="polite">
+        <section class="intro" id="intro">
+          <div class="intro-signal" id="introSignal"></div>
+          <h1>Привет, я Signal.<br>Какую стратегию проверим?</h1>
+          <p class="intro-sub">Опишите торговую стратегию обычными словами, а я превращу её в правила и проверю на исторических данных.</p>
+          <p class="llm-off" id="llmOff" hidden>Модель пока не подключена: без неё я не переведу стратегию в правила.
+            Добавьте ключ GigaChat в файл .env и перезапустите сервис. Сохранённые анализы открываются и так.</p>
+          <div class="ex-groups" id="examples">
+            <div class="ex-group"><div class="ex-h">Базовые</div>
+              <button class="example" type="button" data-q="Газпром за 2022-2025, RSI 14: покупка ниже 30, продажа выше 70"><b>Стратегия RSI</b><span>Газпром, покупка ниже 30, продажа выше 70</span></button>
+              <button class="example" type="button" data-q="Сбербанк за 2023-2025: покупать, когда 20-дневная средняя пересекает 50-дневную снизу вверх, продавать при обратном пересечении"><b>Пересечение средних</b><span>Сбербанк, SMA 20 и 50</span></button>
+              <button class="example" type="button" data-q="Лукойл за 2023-2025, купить и держать"><b>Купить и держать</b><span>Лукойл, база для сравнения</span></button>
+            </div>
+            <div class="ex-group"><div class="ex-h">Продвинутые</div>
+              <button class="example" type="button" data-q="Сбербанк за 2022-2025: покупаю, когда цена пересекает среднюю за 50 дней снизу вверх, продаю при обратном пересечении, стоп-лосс 5%"><b>Со стоп-лоссом</b><span>Сбербанк, средняя 50 и стоп 5%</span></button>
+              <button class="example" type="button" data-q="Лукойл за 2021-2025: покупаю, когда цена выше средней за 200 дней и RSI ниже 40, продаю при RSI выше 70"><b>Несколько индикаторов</b><span>Лукойл, тренд и RSI вместе</span></button>
+              <button class="example" type="button" data-q="Газпром за 2018-2020, RSI 14: покупка ниже 30, продажа выше 70"><b>Другой период</b><span>та же RSI на Газпроме, 2018-2020</span></button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+    <div class="composer">
+      <button class="to-bottom" id="toBottom" type="button" aria-label="К последнему сообщению" hidden><svg><use href="#i-arrow-down"/></svg></button>
+      <div class="chips" id="chips"></div>
+      <div class="scope-hint" id="scopeHint" role="status" aria-live="polite" hidden></div>
+      <form class="input-row" id="composer">
+        <textarea id="input" rows="1" maxlength="2000" aria-label="Сообщение агенту" placeholder="Опишите торговую стратегию или задайте вопрос…"></textarea>
+        <button class="send" type="submit" id="sendBtn" aria-label="Отправить">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </form>
+      <div class="composer-note">Enter отправить, Shift+Enter новая строка, <kbd class="mod">⌘</kbd><kbd>K</kbd> новый анализ. Только история, реальных сделок нет.</div>
+    </div>
+  </main>
+</div>
+
+<aside class="drawer" id="details" aria-label="Подробности" hidden>
+  <div class="drawer-head"><b id="detailsTitle">Подробнее</b><button class="x" data-close aria-label="Закрыть"><svg><use href="#i-x"/></svg></button></div>
+  <div class="drawer-body" id="detailsBody"></div>
+</aside>
+<aside class="drawer" id="settings" aria-label="Настройки" hidden>
+  <div class="drawer-head"><b>Настройки</b><button class="x" data-close aria-label="Закрыть"><svg><use href="#i-x"/></svg></button></div>
+  <div class="drawer-body" id="settingsBody"></div>
+</aside>
+<aside class="drawer" id="how" aria-label="Как это работает" hidden>
+  <div class="drawer-head"><b>Как это работает</b><button class="x" data-close aria-label="Закрыть"><svg><use href="#i-x"/></svg></button></div>
+  <div class="drawer-body how">
+    <p class="how-lead">AI объясняет, код считает, решение за вами. Вы описываете стратегию обычным языком,
+      агент переводит её в строгие правила, проверяет на истории Мосбиржи и объясняет результат.</p>
+    <ol class="how-steps">
+      <li><b>Слова в правила.</b> GigaChat собирает из описания дерево правил: условия на цене, объёме,
+        средних, RSI, MACD, полосах Боллинджера, стохастике, ATR, стопы и выход по времени. Кода модель не пишет.
+        Код проверяет каждое правило и возвращает ошибки модели на исправление.</li>
+      <li><b>Вопрос вместо догадки.</b> Если описание неоднозначно («покупаю на просадках»), агент переспрашивает
+        с готовым вариантом. Что он понял, видно в блоке «Как я понял стратегию».</li>
+      <li><b>Два расчёта.</b> Основной бэктест делает библиотека backtesting.py, контрольный написан с нуля.
+        Решение по закрытию дня, сделка по открытию следующего, комиссия и проскальзывание учтены. Если расчёты
+        разошлись, агент так и говорит.</li>
+      <li><b>Сравнение с простым держанием.</b> Каждая стратегия сравнивается с покупкой акции в первый день
+        периода. Диагностика ищет, где стратегия теряла деньги и не подогнан ли результат под историю.</li>
+      <li><b>Новости рядом, а не причина.</b> Резкие движения цены сопоставляются с новостями по датам.
+        Новость с попыткой управлять агентом скрывается до того, как её увидит модель.</li>
+      <li><b>Человек решает.</b> Сохранение и удаление ждут вашего «Да». Реальной торговли нет: такого
+        инструмента в системе не существует.</li>
+    </ol>
+    <h3 class="how-h">Клавиши</h3>
+    <dl class="keys">
+      <dt><kbd class="mod">⌘</kbd><kbd>K</kbd></dt><dd>новый анализ</dd>
+      <dt><kbd>/</kbd></dt><dd>к полю ввода</dd>
+      <dt><kbd>Esc</kbd></dt><dd>закрыть панель, меню или свернуть отчёт</dd>
+      <dt><kbd>←</kbd><kbd>→</kbd></dt><dd>предыдущая и следующая сделка в открытом отчёте</dd>
+    </dl>
+    <p class="muted small">Каждый шаг агента записан в трассу: что понял, какие инструменты вызвал, сколько токенов и времени
+      потратил. Она в разделе «Проверка» подробной аналитики. Документация API: <a href="/docs" target="_blank" rel="noopener">/docs</a>.</p>
+  </div>
+</aside>
+<div class="scrim" id="scrim" hidden></div>
+
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalText" hidden>
+  <div class="modal-card"><p id="modalText"></p>
+    <div class="row"><button class="btn-mint" id="modalYes" type="button">Да</button><button class="btn-ghost" id="modalNo" type="button">Нет</button></div></div>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="/static/vendor/plotly.min.js"></script>
+<script src="/static/signal.js"></script>
+<script src="/static/app.js?v=26"></script>
+</body>
+</html>

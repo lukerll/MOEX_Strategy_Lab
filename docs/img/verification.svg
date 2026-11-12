@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 600" width="1100" font-family="Inter, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9" fill="none" stroke="#888780" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect width="1100" height="600" rx="16" fill="#FFFFFF"/>
+<rect x="375" y="36" width="350" height="82" rx="14" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<text x="550.0" y="72.6" text-anchor="middle" font-size="19" font-weight="600" fill="#3D3D3A">Котировки и дерево правил</text>
+<text x="550.0" y="93.6" text-anchor="middle" font-size="14" fill="#5F5E5A">Один набор дневных свечей</text>
+<rect x="90" y="190" width="400" height="110" rx="14" fill="#E1F5EE" stroke="#0F6E56" stroke-width="1"/>
+<text x="290.0" y="230.4" text-anchor="middle" font-size="20" font-weight="600" fill="#085041">Основной движок</text>
+<text x="290.0" y="251.4" text-anchor="middle" font-size="14" fill="#0F6E56">backtesting.py и pandas</text>
+<text x="290.0" y="272.4" text-anchor="middle" font-size="14" fill="#0F6E56">backtest/engine.py</text>
+<rect x="610" y="190" width="400" height="110" rx="14" fill="#E1F5EE" stroke="#0F6E56" stroke-width="1"/>
+<text x="810.0" y="230.4" text-anchor="middle" font-size="20" font-weight="600" fill="#085041">Контрольный движок</text>
+<text x="810.0" y="251.4" text-anchor="middle" font-size="14" fill="#0F6E56">Чистый Python, свои индикаторы</text>
+<text x="810.0" y="272.4" text-anchor="middle" font-size="14" fill="#0F6E56">backtest/reference_engine.py</text>
+<path d="M480,121 L290,186" fill="none" stroke="#888780" stroke-width="1.6" marker-end="url(#a)" stroke-linejoin="round"/>
+<path d="M620,121 L810,186" fill="none" stroke="#888780" stroke-width="1.6" marker-end="url(#a)" stroke-linejoin="round"/>
+<rect x="325" y="372" width="450" height="96" rx="14" fill="#E1F5EE" stroke="#0F6E56" stroke-width="1"/>
+<text x="550.0" y="405.4" text-anchor="middle" font-size="20" font-weight="600" fill="#085041">Сверка</text>
+<text x="550.0" y="426.4" text-anchor="middle" font-size="14" fill="#0F6E56">Капитал по дням, сделки, результат каждой</text>
+<text x="550.0" y="447.4" text-anchor="middle" font-size="14" fill="#0F6E56">Допуск 0,0001%</text>
+<path d="M290,303 L480,368" fill="none" stroke="#888780" stroke-width="1.6" marker-end="url(#a)" stroke-linejoin="round"/>
+<path d="M810,303 L620,368" fill="none" stroke="#888780" stroke-width="1.6" marker-end="url(#a)" stroke-linejoin="round"/>
+<rect x="90" y="510" width="400" height="60" rx="14" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<text x="290.0" y="545.1" text-anchor="middle" font-size="16" font-weight="600" fill="#3D3D3A">Совпало: отчёт с пометкой «проверено»</text>
+<rect x="610" y="510" width="400" height="60" rx="14" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
+<text x="810.0" y="545.1" text-anchor="middle" font-size="16" font-weight="600" fill="#3D3D3A">Разошлось: предупреждение первой строкой</text>
+<path d="M480,471 L300,506" fill="none" stroke="#888780" stroke-width="1.6" marker-end="url(#a)" stroke-linejoin="round"/>
+<path d="M620,471 L800,506" fill="none" stroke="#888780" stroke-width="1.6" marker-end="url(#a)" stroke-linejoin="round"/>
+</svg>

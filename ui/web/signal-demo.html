@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signal: маскот агента</title>
+<style>
+  body { margin: 0; min-height: 100vh; background: #000a06; color: #fff; font: 15px/1.5 Inter, system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; }
+  .row { display: flex; gap: 8px; }
+  button { font: inherit; font-size: 14px; color: #fff; background: transparent; border: 1px solid rgba(255,255,255,.2);
+    border-radius: 999px; padding: 6px 16px; cursor: pointer; }
+  button.on { background: #e3ffef; color: #000a06; border-color: #e3ffef; }
+  .sizes { display: flex; align-items: flex-end; gap: 28px; color: #828282; font-size: 12px; }
+  .sizes div { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+  <div id="big"></div>
+  <div class="row" id="ctrl">
+    <button data-s="idle" class="on">idle</button>
+    <button data-s="thinking">thinking</button>
+    <button data-s="success">success</button>
+  </div>
+  <div class="sizes">
+    <div><span id="s48"></span>48 px</div>
+    <div><span id="s28"></span>28 px, аватар в чате</div>
+  </div>
+<script src="signal.js"></script>
+<script>
+  const all = [Signal.create(document.getElementById("big"), { size: 260 }),
+               Signal.create(document.getElementById("s48"), { size: 48 }),
+               Signal.create(document.getElementById("s28"), { size: 28 })];
+  document.getElementById("ctrl").addEventListener("click", (e) => {
+    const s = e.target.dataset.s; if (!s) return;
+    all.forEach((m) => m.setState(s));
+    document.querySelectorAll("#ctrl button").forEach((b) => b.classList.toggle("on", b === e.target));
+    if (s === "success") setTimeout(() => document.querySelectorAll("#ctrl button").forEach((b) => b.classList.toggle("on", b.dataset.s === "idle")), 1800);
+  });
+</script>
+</body>
+</html>
