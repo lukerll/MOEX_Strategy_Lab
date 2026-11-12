@@ -9,7 +9,8 @@
   const isMobile = () => window.matchMedia("(max-width: 760px)").matches;
   const state = { sessionId: localStorage.getItem("msa_session") || null, runs: new Map(), pending: new Set(),
                   lastTrace: null, busy: false, started: false, list: "hist", hist: [], favs: [], active: null, gen: 0 };
-  const prefs = { steps: localStorage.getItem("msa_steps") !== "0", cash: +localStorage.getItem("msa_cash") || null };
+  const prefs = { steps: true, style: localStorage.getItem("msa_style") === "short" ? "short" : "full",
+    signal: localStorage.getItem("msa_signal") !== "0", simple: localStorage.getItem("msa_simple") === "1", cash: +localStorage.getItem("msa_cash") || null };
 
   // ---------- форматирование ----------
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -19,6 +20,9 @@
   const rub = (v, sign = false) => (v < 0 ? "−" : sign && v > 0 ? "+" : "") + Math.round(Math.abs(v)).toLocaleString("ru-RU").replace(/[\s,]/g, "\u00a0") + "\u00a0₽";
   const tone = (v) => v == null ? "" : v < -0.004 ? "neg" : v > 0.004 ? "pos" : "";
   const negc = (v) => v != null && v < -0.004 ? "neg" : "";
+  // оговорка стоит один раз внизу отчёта, в тексте ответа её не повторяем
+  const noDisc = (t) => String(t || "").replace(/\s*Не является индивидуальной инвестиционной рекомендацией\.?/g, "").trim();
+  document.documentElement.classList.toggle("simple", prefs.simple);
   const dmy = (d) => d ? String(d).slice(0, 10).split("-").reverse().join(".") : "";
   const paras = (t) => String(t).split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
 
@@ -117,7 +121,13 @@
     return r.json();
   }
   const getRun = async (id) => { if (!state.runs.has(id)) state.runs.set(id, await api(`/api/runs/${id}`)); return state.runs.get(id); };
-  function toast(t) { const el = $("toast"); el.textContent = t; el.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => (el.hidden = true), 3200); }
+  function toast(t) {
+    const el = $("toast");
+    el.textContent = String(t || "").replace(/\.$/, "");        // короткая реплика без точки в конце
+    el.hidden = false; requestAnimationFrame(() => el.classList.add("show"));
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => { el.classList.remove("show"); setTimeout(() => (el.hidden = true), 200); }, 2200);
+  }
   const sid = () => {
     if (!state.sessionId) { state.sessionId = "ui" + Math.random().toString(36).slice(2, 12); localStorage.setItem("msa_session", state.sessionId); }
     return state.sessionId;
@@ -174,9 +184,9 @@
     const label = isMobile() ? (open ? "Закрыть меню" : "Открыть меню") : (rail ? "Развернуть панель" : "Свернуть панель");
     b.setAttribute("aria-label", label); b.dataset.tip = label;
   }
-  function setRail(on) {
+  function setRail(on, remember = true) {
     root.classList.toggle("rail", on);
-    try { localStorage.setItem("msa_rail", on ? "1" : "0"); } catch (_) {}
+    if (remember) { state.railPeek = false; try { localStorage.setItem("msa_rail", on ? "1" : "0"); } catch (_) {} }
     syncToggle();
     setTimeout(resizePlots, 220);                                  // после анимации колонки
   }
@@ -202,7 +212,7 @@
     $("listCap").textContent = fav ? "Избранное" : "Последние запросы";
     document.querySelectorAll(".side-btn[data-list]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.list === state.list)));
     if (!items.length) {
-      $("sideList").innerHTML = `<p class="side-empty">${fav ? "Сюда попадают стратегии, которые стоит помнить. Звёздочка у отчёта или слово «сохрани» в чате." : "Пусто. Первая проверенная стратегия ляжет сюда."}</p>`;
+      $("sideList").innerHTML = `<p class="side-empty">Пусто</p>`;
       return;
     }
     $("sideList").innerHTML = items.map((x) => `<div class="side-item${x.run_id === state.active ? " active" : ""}" role="button" tabindex="0" data-run="${esc(x.run_id)}" data-sid="${esc(x.session_id || "")}">
@@ -213,7 +223,8 @@
       </div>`).join("");
   }
   document.querySelectorAll(".side-btn[data-list]").forEach((b) => b.addEventListener("click", () => {
-    if (root.classList.contains("rail") && !isMobile()) setRail(false);   // в узкой панели список не помещается
+    // в узкой панели список не помещается: раскрываем её на время выбора и потом возвращаем как было
+    if (root.classList.contains("rail") && !isMobile()) { setRail(false, false); state.railPeek = true; }
     state.list = b.dataset.list; renderSide();
   }));
   $("sideList").addEventListener("click", async (e) => {
@@ -228,7 +239,7 @@
       return;
     }
     const it = e.target.closest(".side-item");
-    if (it) { openFromHistory(it.dataset.run, it.dataset.sid); closeMobileSide(); }
+    if (it) { openFromHistory(it.dataset.run, it.dataset.sid); closeMobileSide(); if (state.railPeek) { state.railPeek = false; setRail(true, false); } }
   });
   $("sideList").addEventListener("keydown", (e) => {
     if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("side-item")) { e.preventDefault(); e.target.click(); }
@@ -420,7 +431,7 @@
     const body = d.querySelector(".a-body");
     try {
       const r = await getRun(runId);
-      const v = verdict(r), txt = reply.text || r.narrative || "";
+      const v = verdict(r), txt = noDisc(reply.text || r.narrative || "");
       const s = r.spec;
       body.insertAdjacentHTML("beforeend", `<p class="lead">Проверил стратегию на истории ${esc(NAMES_GEN[s.ticker] || s.ticker)} за ${period(s)}. ${v.main}</p>
         <p class="sub">${v.risk}</p>
@@ -485,7 +496,7 @@
   }
 
   async function streamChat(text, onStage) {
-    const body = JSON.stringify({ message: text, session_id: state.sessionId, ...(prefs.cash ? { initial_cash: prefs.cash } : {}) });
+    const body = JSON.stringify({ message: text, session_id: state.sessionId, style: prefs.style, ...(prefs.cash ? { initial_cash: prefs.cash } : {}) });
     let r;
     try { r = await fetch("/api/chat/stream", { method: "POST", headers: { "Content-Type": "application/json" }, body }); } catch (e) { r = null; }
     if (!r || !r.ok || !r.body) return api("/api/chat", { method: "POST", body });          // запасной путь
@@ -625,8 +636,8 @@
           <button class="act${fav ? " on" : ""}" type="button" data-star aria-pressed="${fav}" aria-label="${fav ? "Убрать из избранного" : "Добавить в избранное"}" title="${fav ? "Убрать из избранного" : "Добавить в избранное"}"><svg><use href="${fav ? "#i-star-fill" : "#i-star"}"/></svg></button>
           <div class="menu"><button class="act" type="button" data-export aria-label="Экспорт" title="Экспорт" aria-haspopup="true" aria-expanded="false"><svg><use href="#i-down"/></svg></button>
             <div class="menu-list" hidden><a href="/api/runs/${r.run_id}/report.html" target="_blank" rel="noopener">Отчёт HTML с графиками</a>
-              <a href="/api/runs/${r.run_id}/trades.csv">Сделки, CSV</a><a href="/api/runs/${r.run_id}/equity.csv">Капитал по дням, CSV</a>
-              <button type="button" data-copy>Скопировать итог</button></div></div>
+              <a href="/api/runs/${r.run_id}/trades.csv">Сделки, CSV</a>
+              <button type="button" data-tech>Технические детали</button></div></div>
         </div>
       </header>
       ${v.warns.length ? `<div class="warns">${v.warns.map(([c, t]) => `<span class="warn ${c}">${t}</span>`).join("")}</div>` : ""}
@@ -652,8 +663,7 @@
         <div class="pane" data-pane="findings" role="tabpanel" hidden>${findingsHtml(r)}</div>
         <div class="pane" data-pane="check" role="tabpanel" hidden>${checkHtml(r)}</div>
       </div>
-      <div class="ap-foot"><span>Историческая доходность не гарантирует будущую. Не является индивидуальной инвестиционной рекомендацией.</span>
-        <span class="num">запуск ${r.run_id}</span></div>`;
+      <div class="ap-foot"><span>Не является индивидуальной инвестиционной рекомендацией.</span></div>`;
   }
 
   function wirePanel(el, r) {
@@ -681,12 +691,7 @@
       zoom(el, [start < r.equity[0].date ? r.equity[0].date : start, end], k);
     });
     const menu = el.querySelector(".ap-actions .menu"); bindMenu(menu.querySelector("[data-export]"), menu.querySelector(".menu-list"));
-    menu.querySelector("[data-copy]").addEventListener("click", async () => {
-      menu.querySelector(".menu-list").hidden = true;
-      const m = r.metrics, b = r.benchmark;
-      const t = `${company(r.spec.ticker)}, ${strategyText(r.spec)}, ${period(r.spec)}: итоговый капитал ${rub(m.final_equity)} из ${rub(r.spec.initial_cash)}, Buy & Hold ${rub(b.final_equity)}, доходность ${pct(m.total_return_pct)}, худшее падение ${pct(m.max_drawdown_pct, false)}. Запуск ${r.run_id}.`;
-      try { await navigator.clipboard.writeText(t); toast("Итог скопирован"); } catch (_) { toast("Браузер не дал доступ к буферу обмена"); }
-    });
+    menu.querySelector("[data-tech]").addEventListener("click", () => { menu.querySelector(".menu-list").hidden = true; openDetails(r); });
     el.querySelector("[data-star]").addEventListener("click", async () => {
       try {
         const f = state.favs.find((x) => x.run_id === r.run_id);
@@ -760,6 +765,8 @@
     el.querySelectorAll("[data-pv]").forEach((b) => b.addEventListener("click", () => {
       el.querySelectorAll("[data-pv]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
       el._pv = b.dataset.pv; plotPrice(el, r, el._pv);
+      // свечи и линии относятся только к графику цены: на объёме их не показываем
+      el.querySelectorAll("[data-price-tg] [data-tg]").forEach((t) => (t.hidden = el._pv === "volume"));
     }));
     el.querySelectorAll("[data-tg]").forEach((b) => b.addEventListener("click", () => {
       b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"));
@@ -1025,8 +1032,7 @@
     return `<div class="verif">${v.status === "OK" ? `<svg><use href="#i-check"/></svg><span>Два независимых расчёта совпали по всем ${v.checks.length} проверкам (${term("сверка", "verify")}).</span>`
         : `<span class="neg">Два независимых расчёта не совпали: цифрам доверять нельзя.</span>`}</div>
       <div class="news-list sec"><h5>Новости рядом с резкими движениями</h5>${newsHtml(r)}</div>
-      <div class="sec"><h5>Трасса последнего запроса</h5><div data-trace class="muted small">загружаю…</div></div>
-      <div class="links"><button class="linkish" type="button" data-hood>Под капотом: правила в JSON, допущения, режимы рынка, соседние параметры</button></div>`;
+`;
   }
   async function loadTrace(el) {
     const box = el.querySelector("[data-trace]"); if (!box || box._done) return; box._done = true;
@@ -1101,7 +1107,7 @@
     let html = `<p class="muted">${esc(st.charAt(0).toUpperCase() + st.slice(1))}. Новость рядом по дате не означает, что цена изменилась из-за неё.</p>`;
     if (!r.events.length) return html;
     return html + `<div class="scroll"><table class="table"><tr><th>Дата</th><th class="num">Цена</th><th>Новости рядом</th></tr>${
-      r.events.map((e) => `<tr><td>${e.date}</td><td class="num ${negc(e.change_pct)}">${pct(e.change_pct)}</td><td>${
+      r.events.map((e) => `<tr><td>${e.date}</td><td class="num ${tone(e.change_pct)}">${pct(e.change_pct)}</td><td>${
         e.news.length ? e.news.map((n) => n.flagged_injection ? `<div><span class="tag">скрыто: попытка управлять агентом</span></div>`
           : `<div>${/^https?:\/\//.test(n.url || "") ? `<a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a>` : esc(n.title)}
              <span class="muted small">${esc(n.source)}</span></div>`).join("") : `<span class="muted">новостей не нашлось</span>`}</td></tr>`).join("")}</table></div>`;
@@ -1133,71 +1139,294 @@
         `<tr class="${c.ok ? "" : "bad"}"><td>${esc(c.name)}</td><td class="num">${esc(c.main)}</td><td class="num">${esc(c.reference)}</td></tr>`).join("")}</table>
       <h5>Трасса последнего запроса</h5><div id="traceBox" class="muted small">загружаю…</div>
       <div class="links"><a href="/api/runs/${r.run_id}/report.html" target="_blank" rel="noopener">Отчёт HTML</a>
-        <a href="/api/runs/${r.run_id}/trades.csv">Сделки CSV</a><a href="/api/runs/${r.run_id}/equity.csv">Капитал CSV</a></div>`;
+        <a href="/api/runs/${r.run_id}/trades.csv">Сделки CSV</a></div>`;
   }
 
-  // =================== настройки: пользовательские сверху, технические отдельно ===================
-  $("settingsBtn").addEventListener("click", async () => {
-    closeMobileSide(); openDrawer("settings");
-    const body = $("settingsBody"); body.innerHTML = `<p class="muted">Загружаю…</p>`;
-    let c = null; try { c = await api("/api/config"); } catch (_) {}
-    const cur = localStorage.getItem("msa_theme") || "dark", l = (c && c.limits) || {};
-    const row = (a, b) => `<div class="set-row"><span>${a}</span><span>${b}</span></div>`;
-    const sw = (id, on, label) => `<div class="set-row"><span>${label}</span><button class="switch" type="button" role="switch" id="${id}" aria-checked="${on}" aria-label="${label}"></button></div>`;
-    body.innerHTML = `<div class="set-h">Оформление</div>
-      <div class="set-row"><span>Тема</span><div class="seg3" role="group" aria-label="Тема">${[["dark", "Тёмная"], ["light", "Светлая"], ["system", "Как в системе"]]
-        .map(([k, t]) => `<button type="button" data-theme-set="${k}" aria-pressed="${k === cur}">${t}</button>`).join("")}</div></div>
-      <div class="set-h">Интерфейс</div>
-      ${sw("swRail", root.classList.contains("rail"), "Узкая боковая панель")}
-      ${sw("swSteps", prefs.steps, "Показывать ход анализа после ответа")}
-      <div class="set-h">Анализ</div>
-      <div class="set-row"><span>Капитал, если не указан в запросе</span>
+  // =================== настройки: окно с разделами ===================
+  const SECTIONS = [["general", "Общие"], ["look", "Внешний вид"], ["answers", "Ответы"], ["model", "Модель и лимиты"], ["data", "Данные"], ["keys", "Сочетания клавиш"]];
+  const row = (a, b) => `<div class="set-row"><span>${a}</span><span>${b}</span></div>`;
+  const sw = (id, on, label, note = "") => `<div class="set-row"><span class="set-l">${label}${note ? `<small>${note}</small>` : ""}</span>
+    <button class="switch" type="button" role="switch" id="${id}" aria-checked="${on}" aria-label="${label}"></button></div>`;
+  const seg = (name, cur, opts) => `<div class="seg3" role="group">${opts.map(([k, t]) =>
+    `<button type="button" data-${name}="${k}" aria-pressed="${k === cur}">${t}</button>`).join("")}</div>`;
+  const num = (v) => Number(v || 0).toLocaleString("ru-RU").replace(/\s/g, " ");
+  const flip = (e) => { const on = e.currentTarget.getAttribute("aria-checked") !== "true"; e.currentTarget.setAttribute("aria-checked", String(on)); return on; };
+  const usageLine = (u) => `${num(u.tokens)} токенов, ${fmt(u.cost_rub, 2)} ₽`;
+  let llmCheck = null;                                   // результат последней проверки связи, живёт до перезагрузки страницы
+  async function checkLlm() { llmCheck = { ...(await api("/api/llm/check", { method: "POST" })), at: Date.now() }; return llmCheck; }
+  const checkText = (k) => !k ? "" : k.ok ? `<span class="ok">Работает</span>, ответ за ${fmt(k.latency_ms / 1000, 1)} с`
+    : `<span class="neg">Нет связи.</span> ${esc(k.text || "")}`;
+  const balanceText = (k) => k && k.ok && k.balance_tokens != null ? `${num(k.balance_tokens)} токенов`
+    : `<a href="https://developers.sber.ru/studio" target="_blank" rel="noopener">В личном кабинете</a>`;
+
+  const RENDER = {
+    general: () => `${sw("swSignal", prefs.signal, "Помощник Signal", "Персонаж на стартовом экране и рядом с ответами")}
+      ${sw("swSimple", prefs.simple, "Подсказки к терминам", "Пунктир под терминами, наведите курсор, чтобы прочитать")}`,
+    look: () => {
+      const mode = localStorage.getItem("msa_theme") || "system", m = root.dataset.theme, c = themeColors(m), own = "accent" in look.colors[m];
+      const th = (k) => { const t = themeColors(k); return `<span class="th th-${k}" style="--tb:${t.bg};--tf:${t.fg};--ta:${t.accent}"><i class="th-side"></i><i class="th-l a"></i><i class="th-l b"></i><i class="th-l c"></i><i class="th-l d"></i><i class="th-box"></i></span>`; };
+      const chip = (k, label) => `<span class="col-chip"><button type="button" class="col-sw" data-col="${k}" data-label="${label}" style="background:${c[k]}" aria-label="${label}, открыть палитру"></button>
+        <input type="text" data-hex="${k}" value="${c[k].toUpperCase()}" maxlength="7" spellcheck="false" autocomplete="off" aria-label="${label}, код цвета"></span>`;
+      const sel = (id, label, cur, opts) => `<span class="look-sel"><select id="${id}" aria-label="${label}">${opts.map(([k, t]) => `<option value="${k}"${k === cur ? " selected" : ""}>${t}</option>`).join("")}</select><svg><use href="#i-chev"/></svg></span>`;
+      return `<div class="look-card look-mode"><span>Режим</span><div class="modes" role="group" aria-label="Режим">${[["system", "Как в системе"], ["light", "Светлый"], ["dark", "Тёмный"]].map(([k, t]) =>
+          `<button type="button" class="mode-th" data-theme-set="${k}" aria-pressed="${k === mode}" aria-label="${t}" title="${t}">${k === "system" ? th("light") + th("dark") : th(k)}</button>`).join("")}</div></div>
+        <div class="look-card">
+          <div class="set-row"><span>Тема</span><span class="look-ctl">
+            <button type="button" class="look-ic" id="thImport" title="Вставить код темы" aria-label="Вставить код темы"><svg><use href="#i-down"/></svg></button>
+            <button type="button" class="look-ic" id="thCopy" title="Скопировать код темы" aria-label="Скопировать код темы"><svg><use href="#i-copy"/></svg></button>
+            ${sel("thPreset", "Тема", look.preset, Object.entries(THEMES).map(([k, t]) => [k, t.name]))}</span></div>
+          <div class="set-row" id="thPasteRow" hidden><input class="look-paste" id="thPaste" placeholder="Вставьте код темы и нажмите Enter" spellcheck="false" autocomplete="off" aria-label="Код темы"></div>
+          <div class="set-row"><span>Акцентный цвет</span><span class="look-ctl">${sel("acMode", "Акцентный цвет", own ? "own" : "theme", [["theme", "Из темы"], ["own", "Свой цвет"]])}${chip("accent", "Акцентный цвет")}</span></div>
+          <div class="set-row"><span>Фон</span>${chip("bg", "Фон")}</div>
+          <div class="set-row"><span>Цвет текста</span>${chip("fg", "Цвет текста")}</div>
+        </div>
+        <p class="set-note" id="lookNote"></p>`;
+    },
+    answers: (c) => `${row(`<span class="set-l">Объяснение результата<small>Коротко: два-три предложения. Подробно: разбор по годам и режимам рынка</small></span>`,
+        seg("style-set", prefs.style, [["short", "Коротко"], ["full", "Подробно"]]))}
+      <div class="set-row"><span class="set-l">Капитал по умолчанию<small id="cashNote">Берётся, если сумма не названа в запросе</small></span>
         <span class="cash-set"><input id="cashInput" inputmode="numeric" autocomplete="off" aria-label="Капитал по умолчанию, рублей"
-          value="${(prefs.cash || (c && c.default_cash) || 100000).toLocaleString("ru-RU").replace(/\s/g, "\u00a0")}"> ₽</span></div>
-      <p class="set-note" id="cashNote">Применяется к новым запросам. В самом запросе можно написать «капитал 500 тысяч».</p>
-      <div class="set-h">Модель</div>
-      ${c ? row("Сейчас отвечает", `${esc(c.model || c.provider)} ${c.llm_ready ? '<span class="ok">подключена</span>' : '<span class="neg">ключ не найден</span>'}`)
-          : row("Модель", "сведения недоступны")}
-      ${c ? `<details class="set-tech"><summary>Технические параметры</summary>
-        ${row("Провайдер", esc(c.provider))}${row("Модель", esc(c.model || "н/д"))}
-        ${row("Ключ API", c.llm_ready ? '<span class="ok">найден в .env</span>' : '<span class="neg">не найден</span>')}
-        ${row("Запасные провайдеры", esc((c.fallback || []).slice(1).join(", ") || "нет"))}
-        ${row("Котировки", c.data_mode === "demo" ? "демонстрационные (флаг --demo)" : "MOEX ISS с кешем")}
-        ${row("Шагов агента на запрос", l.max_steps)}${row("Вызовов инструментов", l.max_tool_calls)}${row("Вызовов модели", l.max_llm_calls)}
-        ${row("Стоимость запроса, не больше", fmt(l.max_cost_rub_per_request, 0) + " ₽")}
-        <p class="muted small" style="margin-top:12px">Эти параметры меняются в configs/providers.yaml и configs/settings.yaml, ключи в .env. Значения ключей здесь не показываются.</p>
-      </details>` : ""}`;
-    body.querySelectorAll("[data-theme-set]").forEach((b) => b.addEventListener("click", () => {
-      body.querySelectorAll("[data-theme-set]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
-      setTheme(b.dataset.themeSet);
-    }));
-    const ci = $("cashInput"), cn = $("cashNote"), cnText = cn.textContent;
-    ci.addEventListener("change", () => {
-      const v = Math.round(+ci.value.replace(/[^\d]/g, ""));
-      if (!v || v < 1000 || v > 1e9) { cn.textContent = "Нужна сумма от 1 000 до 1 000 000 000 ₽."; cn.classList.add("bad"); return; }
-      cn.textContent = cnText; cn.classList.remove("bad");
-      prefs.cash = v; localStorage.setItem("msa_cash", String(v));
-      ci.value = v.toLocaleString("ru-RU").replace(/\s/g, "\u00a0"); toast("Капитал по умолчанию: " + rub(v));
+          value="${num(prefs.cash || (c && c.default_cash) || 100000)}"> ₽</span></div>`,
+    model: (c, u) => {
+      if (!c) return `<p class="muted">Сведения о модели недоступны: сервер не ответил.</p>`;
+      const l = c.limits || {};
+      return `${row("Модель", esc(c.model || c.provider))}
+        ${row("Ключ API", c.llm_ready ? '<span class="ok">Найден</span>' : '<span class="neg">Не найден в .env</span>')}
+        <div class="set-row"><span class="set-l">Связь<small id="checkOut">${checkText(llmCheck) || "Проверка не тратит токены"}</small></span>
+          <button class="btn-ghost btn-sm" type="button" id="checkBtn">Проверить</button></div>
+        ${row("Остаток у GigaChat", `<span id="balOut">${llmCheck ? balanceText(llmCheck) : "Появится после проверки связи"}</span>`)}
+        <div class="set-h">Расход</div>
+        ${u ? row("Сегодня", usageLine(u.today)) + row("За всё время", usageLine(u.total)) : row("Расход", "нет данных")}
+        ${row("Лимит на один запрос", `до ${l.max_steps} шагов, ${l.max_llm_calls} обращений к модели, ${fmt(l.max_cost_rub_per_request, 0)} ₽`)}
+        <details class="set-tech"><summary>Подробнее</summary>
+          ${row("Провайдер", esc(c.provider))}
+          ${row("Запасные провайдеры", esc((c.fallback || []).slice(1).join(", ") || "нет"))}
+          ${row("Котировки", c.data_mode === "demo" ? "Демонстрационные (флаг --demo)" : "MOEX ISS с кешем")}
+          ${row("Вызовов инструментов на запрос", l.max_tool_calls)}
+          <p class="muted small" style="margin-top:12px">Меняется в configs/providers.yaml и configs/settings.yaml, ключи лежат в .env и здесь не показываются.</p>
+        </details>`;
+    },
+    data: () => `<div class="set-row"><span class="set-l">История запусков<small>Избранное останется. Действие нельзя отменить</small></span>
+        <button class="btn-ghost btn-sm" type="button" id="clearBtn">Очистить историю</button></div>`,
+    keys: () => `<dl class="keys"><dt><kbd class="mod">⌘</kbd><kbd>K</kbd></dt><dd>Новый анализ</dd>
+      <dt><kbd>/</kbd></dt><dd>К полю ввода</dd>
+      <dt><kbd>Esc</kbd></dt><dd>Закрыть окно, меню или свернуть отчёт</dd>
+      <dt><kbd>←</kbd><kbd>→</kbd></dt><dd>Предыдущая и следующая сделка в открытом отчёте</dd></dl>`,
+  };
+
+  function wireSection(id, body) {
+    if (id === "general") {
+      $("swSimple").addEventListener("click", (e) => { prefs.simple = flip(e); localStorage.setItem("msa_simple", prefs.simple ? "1" : "0"); root.classList.toggle("simple", prefs.simple); });
+      $("swSignal").addEventListener("click", (e) => { prefs.signal = flip(e); localStorage.setItem("msa_signal", prefs.signal ? "1" : "0"); root.classList.toggle("no-signal", !prefs.signal); });
+    }
+    if (id === "look") {
+      const redraw = (keep) => { if (!keep) closeCp(); body.innerHTML = RENDER.look(); wireSection("look", body); };
+      const m = root.dataset.theme;
+      const note = () => {
+        const c = themeColors(m), k = contrast(c.fg, c.bg), changed = Object.keys(look.colors.dark).length + Object.keys(look.colors.light).length > 0;
+        $("lookNote").classList.toggle("bad", k < 4.5);
+        $("lookNote").innerHTML = (k < 4.5 ? `Текст плохо читается на таком фоне: контраст ${fmt(k, 1)} при норме 4,5. ` : "")
+          + (changed ? `<button type="button" class="look-reset" id="lookReset">Вернуть цвета темы</button>` : "");
+        if (changed) $("lookReset").addEventListener("click", () => { look.colors = { dark: {}, light: {} }; saveLook(); applyTheme(); redraw(); });
+      };
+      note();
+      body.querySelectorAll("[data-theme-set]").forEach((b) => b.addEventListener("click", () => { setTheme(b.dataset.themeSet); redraw(); }));
+      $("thPreset").addEventListener("change", (e) => { look.preset = e.target.value; look.colors = { dark: {}, light: {} }; saveLook(); applyTheme(); redraw(); });
+      $("acMode").addEventListener("change", (e) => {
+        if (e.target.value === "own") look.colors[m].accent = themeColors(m).accent; else delete look.colors[m].accent;
+        saveLook(); applyTheme(); redraw(); });
+      const setCol = (k, v, final) => {
+        look.colors[m][k] = v.toLowerCase();
+        if (look.colors[m][k] === THEMES[look.preset][m][k] && k !== "accent") delete look.colors[m][k];
+        saveLook();
+        if (final) { applyTheme(); redraw(true); return; }
+        applyColors(); body.querySelector(`[data-hex="${k}"]`).value = v.toUpperCase(); body.querySelector(`[data-col="${k}"]`).style.background = v; if (k === "accent") $("acMode").value = "own"; note();
+      };
+      body.querySelectorAll("[data-col]").forEach((b) => b.addEventListener("click", () => {
+        const k = b.dataset.col; if (cp && cp.k === k) { closeCp(); return; }
+        openCp(b, k, themeColors(m)[k], b.dataset.label, (c, final) => setCol(k, c, final)); }));
+      body.querySelectorAll("[data-hex]").forEach((i) => i.addEventListener("change", () => {
+        const v = i.value.trim().replace(/^#?/, "#");
+        if (!hx(v)) { toast("Нужен код цвета вида #1A2B3C"); redraw(); return; }
+        closeCp(); setCol(i.dataset.hex, v, true); }));
+      $("thCopy").addEventListener("click", async () => {
+        const code = JSON.stringify({ msa_theme: 1, preset: look.preset, dark: themeColors("dark"), light: themeColors("light") });
+        try { await navigator.clipboard.writeText(code); toast("Код темы скопирован"); } catch (_) { toast("Браузер не дал доступ к буферу обмена"); } });
+      $("thImport").addEventListener("click", () => { const r = $("thPasteRow"); r.hidden = !r.hidden; if (!r.hidden) $("thPaste").focus(); });
+      $("thPaste").addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+        if (!importLook(e.target.value)) { toast("Это не код темы"); return; }
+        applyTheme(); redraw(); toast("Тема применена"); });
+    }
+    if (id === "answers") {
+      body.querySelectorAll("[data-style-set]").forEach((b) => b.addEventListener("click", () => {
+        body.querySelectorAll("[data-style-set]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+        prefs.style = b.dataset.styleSet; localStorage.setItem("msa_style", prefs.style); }));
+      const ci = $("cashInput"), cn = $("cashNote"), cnText = cn.textContent;
+      ci.addEventListener("change", () => {
+        const v = Math.round(+ci.value.replace(/[^\d]/g, ""));
+        if (!v || v < 1000 || v > 1e9) { cn.textContent = "Нужна сумма от 1 000 до 1 000 000 000 ₽"; cn.classList.add("bad"); return; }
+        cn.textContent = cnText; cn.classList.remove("bad");
+        prefs.cash = v; localStorage.setItem("msa_cash", String(v)); ci.value = num(v); toast("Капитал по умолчанию: " + rub(v));
+      });
+      ci.addEventListener("input", () => { cn.textContent = cnText; cn.classList.remove("bad"); });
+    }
+    if (id === "model" && $("checkBtn")) $("checkBtn").addEventListener("click", async (e) => {
+      const b = e.currentTarget; b.disabled = true; $("checkOut").textContent = "Проверяю…";
+      try { const k = await checkLlm(); $("checkOut").innerHTML = checkText(k); $("balOut").innerHTML = balanceText(k); }
+      catch (err) { $("checkOut").textContent = "Проверка не удалась: " + err.message; }
+      b.disabled = false;
     });
-    ci.addEventListener("input", () => { cn.textContent = cnText; cn.classList.remove("bad"); });
-    $("swRail").addEventListener("click", (e) => { const on = e.currentTarget.getAttribute("aria-checked") !== "true"; e.currentTarget.setAttribute("aria-checked", String(on)); setRail(on); });
-    $("swSteps").addEventListener("click", (e) => { const on = e.currentTarget.getAttribute("aria-checked") !== "true"; e.currentTarget.setAttribute("aria-checked", String(on));
-      prefs.steps = on; localStorage.setItem("msa_steps", on ? "1" : "0"); document.querySelectorAll("details.steps").forEach((d) => (d.hidden = !on)); });
+    if (id === "data") $("clearBtn").addEventListener("click", async () => {
+      try {
+        if (await humanAction(() => api(`/api/history/clear?session_id=${sid()}`, { method: "POST" }))) { state.runs.clear(); await loadSide(); closeDrawers(); newAnalysis(); }
+      } catch (err) { toast("Не удалось: " + err.message); }
+    });
+  }
+
+  async function openSettings(section = "general") {
+    closeMobileSide(); closeUsage(); openDrawer("settings");
+    $("setNav").innerHTML = SECTIONS.map(([k, t]) => `<button type="button" role="tab" data-sec="${k}" aria-selected="${k === section}">${t}</button>`).join("");
+    let c = null, u = null;
+    const show = (id) => {
+      $("setNav").querySelectorAll("[data-sec]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.sec === id)));
+      closeCp(); $("setTitle").textContent = SECTIONS.find(([k]) => k === id)[1];
+      $("settingsBody").innerHTML = RENDER[id](c, u); wireSection(id, $("settingsBody"));
+    };
+    $("setNav").onclick = (e) => { const b = e.target.closest("[data-sec]"); if (b) show(b.dataset.sec); };
+    show(section);
+    try { [c, u] = await Promise.all([api("/api/config"), api("/api/usage")]); } catch (_) {}
+    const cur = $("setNav").querySelector('[aria-selected="true"]');
+    if (!$("settings").hidden && cur && ["answers", "model"].includes(cur.dataset.sec)) show(cur.dataset.sec);
+  }
+  $("settingsBtn").addEventListener("click", () => openSettings());
+
+  // =================== расход: окошко у боковой панели ===================
+  function closeUsage() { $("usagePop").hidden = true; $("usageBtn").setAttribute("aria-expanded", "false"); }
+  $("usageBtn").addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const pop = $("usagePop");
+    if (!pop.hidden) { closeUsage(); return; }
+    if (!isMobile()) pop.style.bottom = (window.innerHeight - e.currentTarget.getBoundingClientRect().top + 6) + "px";
+    pop.innerHTML = `<p class="muted small">Загружаю…</p>`; pop.hidden = false; $("usageBtn").setAttribute("aria-expanded", "true");
+    let u; try { u = await api("/api/usage"); } catch (_) { pop.innerHTML = `<p class="muted small">Расход недоступен</p>`; return; }
+    const draw = () => { pop.innerHTML = `<div class="up-src">Модель: ${esc(u.model || u.provider)}</div>
+      <div class="up-row"><span>Сегодня</span><b>${usageLine(u.today)}</b></div>
+      <div class="up-row"><span>За всё время</span><b>${usageLine(u.total)}</b></div>
+      <div class="up-row"><span>Остаток</span><b id="upBal">${llmCheck ? balanceText(llmCheck) : "…"}</b></div>
+      <button type="button" class="up-more" id="upMore">Модель и лимиты</button>`;
+      $("upMore").addEventListener("click", () => openSettings("model")); };
+    draw();
+    if (!llmCheck || Date.now() - llmCheck.at > 300000) { try { await checkLlm(); } catch (_) { llmCheck = { ok: false, at: Date.now() }; } if (!pop.hidden) draw(); }
   });
+  document.addEventListener("click", (e) => { if (!$("usagePop").hidden && !e.target.closest(".usage-wrap")) closeUsage(); });
 
   // =================== тема ===================
+  // Набор CBR без правок живёт в app.css. Любой другой набор или свой цвет: токены считаются из трёх цветов и ставятся поверх.
+  const POS = { dark: "#5fd899", light: "#0b7a48" };      // рост остаётся зелёным в наборах, где акцент не зелёный
+  const THEMES = {
+    cbr: { name: "CBR", dark: { accent: "#7affb4", bg: "#000a06", fg: "#ffffff" }, light: { accent: "#0b7a48", bg: "#f6f8f7", fg: "#0a1a14" } },
+    graphite: { name: "Графит", pos: POS, dark: { accent: "#e6e6e6", bg: "#0d0d0d", fg: "#f3f3f3" }, light: { accent: "#0d0d0d", bg: "#f9f9f9", fg: "#0d0d0d" } },
+  };
+  const hx = (h) => { const m = /^#([0-9a-f]{6})$/i.exec(String(h).trim()); return m ? [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16)) : null; };
+  const mix = (a, b, t) => { const x = hx(a), y = hx(b); return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join(""); };
+  const alpha = (h, a) => `rgba(${hx(h).join(", ")}, ${a})`;
+  const lum = (h) => { const [r, g, b] = hx(h).map((v) => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }); return .2126 * r + .7152 * g + .0722 * b; };
+  const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+  const look = { preset: "cbr", colors: { dark: {}, light: {} } };
+  const cleanColors = (o, base) => { const r = {}; ["accent", "bg", "fg"].forEach((k) => { if (o && hx(o[k]) && (!base || o[k].toLowerCase() !== base[k])) r[k] = o[k].toLowerCase(); }); return r; };
+  try {
+    const p = localStorage.getItem("msa_preset"), c = JSON.parse(localStorage.getItem("msa_colors") || "{}");
+    if (THEMES[p]) { look.preset = p; look.colors = { dark: cleanColors(c.dark), light: cleanColors(c.light) }; }   // удалённый набор: возврат к CBR без своих цветов
+  } catch (_) {}
+  const themeColors = (mode) => ({ ...THEMES[look.preset][mode], ...look.colors[mode] });
+  function themeVars(mode) {
+    if (look.preset === "cbr" && !Object.keys(look.colors[mode]).length) return null;
+    const c = themeColors(mode), dark = lum(c.bg) < .3, t = THEMES[look.preset];
+    let ink = c.accent;                                  // акцент для текста и линий: подтягиваем к цвету текста, пока не станет читаемым
+    for (let i = 0; i < 12 && contrast(ink, c.bg) < 4.5; i++) ink = mix(ink, c.fg, .2);
+    const soft = mix(c.fg, c.bg, .12), muted = mix(c.fg, c.bg, .4);
+    const v = { "--bg": c.bg, "--card": dark ? mix(c.bg, c.fg, .06) : mix(c.bg, "#ffffff", .75), "--elev": dark ? mix(c.bg, c.fg, .09) : mix(c.bg, "#ffffff", .9),
+      "--text": c.fg, "--text-soft": soft, "--muted": muted, "--faint": mix(c.fg, c.bg, .55),
+      "--line": alpha(c.fg, .09), "--line-strong": alpha(c.fg, .17), "--line-focus": alpha(c.fg, .32), "--hover": alpha(c.fg, .04), "--hover-strong": alpha(c.fg, .07),
+      "--mint": c.accent, "--on-mint": contrast(c.accent, "#0d0d0d") > contrast(c.accent, "#ffffff") ? "#0d0d0d" : "#ffffff",
+      "--accent": ink, "--mint-soft": alpha(c.accent, dark ? .1 : .14), "--accent-line": alpha(ink, .24),
+      "--ch-strategy": ink, "--ch-bench": muted, "--ch-grid": alpha(c.fg, .05), "--ch-start": alpha(c.fg, .22), "--ch-ov1": alpha(c.fg, .5),
+      "--ch-level": alpha(c.fg, .28), "--ch-hl": alpha(ink, .08), "--ch-vol": alpha(c.fg, .2), "--ch-price": soft };
+    if (t.pos && !("accent" in look.colors[mode])) v["--pos"] = t.pos[dark ? "dark" : "light"];
+    return v;
+  }
+  function applyColors() {
+    const all = { dark: themeVars("dark"), light: themeVars("light") }, v = all[root.dataset.theme] || {};
+    [...root.style].filter((k) => k.startsWith("--")).forEach((k) => root.style.removeProperty(k));
+    Object.keys(v).forEach((k) => root.style.setProperty(k, v[k]));
+    try { if (all.dark || all.light) localStorage.setItem("msa_vars", JSON.stringify(all)); else localStorage.removeItem("msa_vars"); } catch (_) {}
+  }
+  const hsv2hex = (h, s, v) => { const f = (n) => { const k = (n + h / 60) % 6; return Math.round(255 * (v - v * s * Math.max(0, Math.min(k, 4 - k, 1)))).toString(16).padStart(2, "0"); }; return "#" + f(5) + f(3) + f(1); };
+  const hex2hsv = (hex) => { const [r, g, b] = hx(hex).map((x) => x / 255), mx = Math.max(r, g, b), dd = mx - Math.min(r, g, b);
+    let h = 0; if (dd) h = mx === r ? ((g - b) / dd + 6) % 6 : mx === g ? (b - r) / dd + 2 : (r - g) / dd + 4;
+    return { h: h * 60, s: mx ? dd / mx : 0, v: mx }; };
+  let cp = null;                                         // открытая палитра: поле насыщенности и яркости, под ним ползунок тона
+  function closeCp() {
+    if (!cp) return;
+    cp.el.remove(); document.removeEventListener("pointerdown", cp.out, true); document.removeEventListener("keydown", cp.key, true); cp = null;
+  }
+  function openCp(anchor, k, hex, label, onPick) {
+    closeCp();
+    const win = $("settings"), el = document.createElement("div"), st = hex2hsv(hex), lim = (x) => Math.max(0, Math.min(1, x));
+    el.className = "cp";
+    el.innerHTML = `<div class="cp-sv" tabindex="0" role="slider" aria-label="${label}: насыщенность и яркость, стрелки"><i></i></div>
+      <div class="cp-h" tabindex="0" role="slider" aria-label="${label}: тон" aria-valuemin="0" aria-valuemax="360"><i></i></div>`;
+    win.appendChild(el);
+    const sv = el.querySelector(".cp-sv"), hu = el.querySelector(".cp-h");
+    const paint = () => {
+      const c = hsv2hex(st.h, st.s, st.v), pure = hsv2hex(st.h, 1, 1);
+      sv.style.setProperty("--hue", pure); sv.firstChild.style.cssText = `left:${st.s * 100}%;top:${(1 - st.v) * 100}%;background:${c}`;
+      hu.firstChild.style.cssText = `left:${st.h / 3.6}%;background:${pure}`;
+      hu.setAttribute("aria-valuenow", Math.round(st.h)); sv.setAttribute("aria-valuetext", c.toUpperCase()); return c;
+    };
+    const drag = (node, set) => node.addEventListener("pointerdown", (e) => {
+      e.preventDefault(); node.focus(); node.setPointerCapture(e.pointerId);
+      const mv = (ev) => { const r = node.getBoundingClientRect(); set(lim((ev.clientX - r.left) / r.width), lim((ev.clientY - r.top) / r.height)); onPick(paint(), false); };
+      const up = () => { node.removeEventListener("pointermove", mv); node.removeEventListener("pointerup", up); node.removeEventListener("pointercancel", up); onPick(paint(), true); };
+      mv(e); node.addEventListener("pointermove", mv); node.addEventListener("pointerup", up); node.addEventListener("pointercancel", up);
+    });
+    drag(sv, (x, y) => { st.s = x; st.v = 1 - y; }); drag(hu, (x) => { st.h = x * 360; });
+    const arrows = (node, fn) => node.addEventListener("keydown", (e) => {
+      const dx = { ArrowLeft: -1, ArrowRight: 1 }[e.key] || 0, dy = { ArrowDown: -1, ArrowUp: 1 }[e.key] || 0;
+      if (!dx && !dy) return; e.preventDefault(); fn(dx, dy, e.shiftKey ? 5 : 1); onPick(paint(), true); });
+    arrows(sv, (dx, dy, n) => { st.s = lim(st.s + dx * .02 * n); st.v = lim(st.v + dy * .02 * n); });
+    arrows(hu, (dx, dy, n) => { st.h = Math.max(0, Math.min(360, st.h + (dx || dy) * 3 * n)); });
+    paint();
+    const a = anchor.getBoundingClientRect(), w = win.getBoundingClientRect();
+    let top = a.bottom - w.top + 8; if (top + el.offsetHeight > w.height - 8) top = a.top - w.top - el.offsetHeight - 8;
+    el.style.top = Math.max(8, top) + "px"; el.style.left = Math.max(8, Math.min(a.right - w.left - el.offsetWidth, w.width - el.offsetWidth - 8)) + "px";
+    cp = { el, k, out: (e) => { if (!el.contains(e.target) && !e.target.closest("[data-col]")) closeCp(); },
+      key: (e) => { if (e.key === "Escape") { e.stopPropagation(); closeCp(); } } };
+    document.addEventListener("pointerdown", cp.out, true); document.addEventListener("keydown", cp.key, true);
+    sv.focus({ preventScroll: true });
+  }
+  function saveLook() { try { localStorage.setItem("msa_preset", look.preset); localStorage.setItem("msa_colors", JSON.stringify(look.colors)); } catch (_) {} }
+  function importLook(text) {
+    let o; try { o = JSON.parse(text); } catch (_) { return false; }
+    if (!o || o.msa_theme !== 1 || !THEMES[o.preset]) return false;
+    const ok = (c) => c && ["accent", "bg", "fg"].every((k) => hx(c[k]));
+    if (!ok(o.dark) || !ok(o.light)) return false;
+    look.preset = o.preset; look.colors = { dark: cleanColors(o.dark, THEMES[o.preset].dark), light: cleanColors(o.light, THEMES[o.preset].light) };
+    saveLook(); return true;
+  }
   const sysLight = window.matchMedia("(prefers-color-scheme: light)");
   function applyTheme() {
-    const t = localStorage.getItem("msa_theme") || "dark";
+    const t = localStorage.getItem("msa_theme") || "system";
     root.dataset.theme = t === "system" ? (sysLight.matches ? "light" : "dark") : t;
-    readTheme();
+    applyColors(); readTheme();
     log.querySelectorAll(".ap:not(.collapsed)").forEach((el) => {
       plotEquity(el, el._r);
       if (!el.querySelector('[data-pane="price"]').hidden) plotPrice(el, el._r, el._pv || "price");
     });
   }
   function setTheme(t) { try { localStorage.setItem("msa_theme", t); } catch (_) {} applyTheme(); }
-  sysLight.addEventListener("change", () => { if ((localStorage.getItem("msa_theme") || "dark") === "system") applyTheme(); });
+  sysLight.addEventListener("change", () => { if ((localStorage.getItem("msa_theme") || "system") === "system") applyTheme(); });
 
   // =================== восстановление диалога ===================
   async function restore(focusRun) {

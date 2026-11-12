@@ -74,6 +74,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         def index() -> FileResponse:
             return FileResponse(WEB_DIR / "index.html")
 
+        @app.get("/favicon.ico", include_in_schema=False)
+        def favicon() -> FileResponse:
+            return FileResponse(WEB_DIR / "icon-32.png", media_type="image/png")    # для браузеров, которые просят иконку по старому адресу
+
         @app.get("/about", include_in_schema=False)
         def about() -> RedirectResponse:
             return RedirectResponse("/")            # описание теперь панель «Как это работает» в приложении

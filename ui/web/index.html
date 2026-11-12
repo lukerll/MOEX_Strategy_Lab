@@ -4,15 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
 <title>MOEX Strategy Agent</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23000a06'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%237affb4'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+<link rel="alternate icon" type="image/png" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/static/icon-180.png">
 <meta name="color-scheme" content="dark light">
 <script>
   // тема и свёрнутая панель ставятся до отрисовки, чтобы ничего не мигало
-  (function () { var d = document.documentElement; try { var t = localStorage.getItem("msa_theme") || "dark";
+  (function () { var d = document.documentElement; try { var t = localStorage.getItem("msa_theme") || "system";
     if (t === "system") t = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-    d.dataset.theme = t; if (localStorage.getItem("msa_rail") === "1") d.classList.add("rail"); } catch (e) { d.dataset.theme = "dark"; } })();
+    d.dataset.theme = t; var v = JSON.parse(localStorage.getItem("msa_vars") || "null");
+    if (v && v[t]) for (var k in v[t]) if (k.slice(0, 2) === "--") d.style.setProperty(k, v[t][k]);
+    if (localStorage.getItem("msa_rail") === "1") d.classList.add("rail");
+    if (localStorage.getItem("msa_signal") === "0") d.classList.add("no-signal"); } catch (e) { d.dataset.theme = "dark"; } })();
 </script>
-<link rel="stylesheet" href="/static/app.css?v=26">
+<link rel="stylesheet" href="/static/app.css?v=34">
 </head>
 <body class="fresh">
 
@@ -21,6 +26,7 @@
   <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 8v4l2.5 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
   <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 4.5l2.3 4.7 5.2.8-3.8 3.7.9 5.1L12 16.4l-4.6 2.4.9-5.1-3.8-3.7 5.2-.8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
   <symbol id="i-star-fill" viewBox="0 0 24 24"><path d="M12 4.5l2.3 4.7 5.2.8-3.8 3.7.9 5.1L12 16.4l-4.6 2.4.9-5.1-3.8-3.7 5.2-.8z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+  <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4.5 17a8.5 8.5 0 1 1 15 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M12 14l3.5-4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="14" r="1.4" fill="currentColor"/></symbol>
   <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
   <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9.8 9.6a2.3 2.3 0 1 1 3.2 2.1c-.6.3-1 .8-1 1.5v.4M12 16.6h.01" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
   <symbol id="i-side" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9.5 5v14" stroke="currentColor" stroke-width="1.6"/></symbol>
@@ -32,13 +38,15 @@
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.5v5.5M12 16.4h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
   <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 11v5M12 8h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M15.5 5.5v-.5a2 2 0 0 0-2-2H6.5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2H7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-logo" viewBox="8 8 48 44"><path d="M12 46V34a20 20 0 0 1 40 0v12" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round"/><path d="M25 31v14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="21.5" y="34" width="7" height="8" rx="1.5" fill="currentColor"/><path d="M39 26v21" stroke="var(--logo)" stroke-width="2" stroke-linecap="round"/><rect x="35.5" y="29" width="7" height="14" rx="1.5" fill="var(--logo)"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="M8 10l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
 
 <header class="top">
   <button class="icon-btn" id="sideToggle" type="button" aria-controls="side" aria-expanded="true" aria-label="Свернуть боковую панель" data-tip="Свернуть панель">
     <svg><use href="#i-side"/></svg></button>
-  <a class="brand" href="/" id="brand" title="Новый анализ"><span class="dot" aria-hidden="true"></span><span class="full">MOEX Strategy Agent</span><span class="short">MOEX Agent</span></a>
+  <a class="brand" href="/" id="brand" title="Новый анализ"><svg class="logo" aria-hidden="true"><use href="#i-logo"/></svg><span class="full">MOEX Strategy Agent</span><span class="short">MOEX Agent</span></a>
 </header>
 
 <div class="shell">
@@ -53,6 +61,8 @@
       <div class="side-list" id="sideList"><p class="side-empty">Загружаю…</p></div>
     </div>
     <div class="side-bot">
+      <div class="usage-wrap"><button class="side-btn" id="usageBtn" type="button" data-tip="Расход" aria-haspopup="true" aria-expanded="false"><svg><use href="#i-gauge"/></svg><span class="lbl">Расход</span></button>
+        <div class="usage-pop" id="usagePop" role="dialog" aria-label="Расход токенов" hidden></div></div>
       <button class="side-btn" id="settingsBtn" type="button" data-tip="Настройки"><svg><use href="#i-gear"/></svg><span class="lbl">Настройки</span></button>
       <button class="side-btn" id="howBtn" type="button" data-tip="Как это работает"><svg><use href="#i-help"/></svg><span class="lbl">Как это работает</span></button>
     </div>
@@ -101,10 +111,15 @@
   <div class="drawer-head"><b id="detailsTitle">Подробнее</b><button class="x" data-close aria-label="Закрыть"><svg><use href="#i-x"/></svg></button></div>
   <div class="drawer-body" id="detailsBody"></div>
 </aside>
-<aside class="drawer" id="settings" aria-label="Настройки" hidden>
-  <div class="drawer-head"><b>Настройки</b><button class="x" data-close aria-label="Закрыть"><svg><use href="#i-x"/></svg></button></div>
-  <div class="drawer-body" id="settingsBody"></div>
-</aside>
+<div class="setwin" id="settings" role="dialog" aria-modal="true" aria-label="Настройки" hidden>
+  <nav class="setnav" aria-label="Разделы настроек"><b class="setnav-h">Настройки</b>
+    <div class="setnav-list" id="setNav" role="tablist"></div>
+    <span class="setver">MOEX Strategy Lab v1.0</span></nav>
+  <div class="setmain">
+    <div class="setmain-head"><b id="setTitle"></b><button class="x" data-close aria-label="Закрыть"><svg><use href="#i-x"/></svg></button></div>
+    <div class="setbody" id="settingsBody"></div>
+  </div>
+</div>
 <aside class="drawer" id="how" aria-label="Как это работает" hidden>
   <div class="drawer-head"><b>Как это работает</b><button class="x" data-close aria-label="Закрыть"><svg><use href="#i-x"/></svg></button></div>
   <div class="drawer-body how">
@@ -126,13 +141,6 @@
       <li><b>Человек решает.</b> Сохранение и удаление ждут вашего «Да». Реальной торговли нет: такого
         инструмента в системе не существует.</li>
     </ol>
-    <h3 class="how-h">Клавиши</h3>
-    <dl class="keys">
-      <dt><kbd class="mod">⌘</kbd><kbd>K</kbd></dt><dd>новый анализ</dd>
-      <dt><kbd>/</kbd></dt><dd>к полю ввода</dd>
-      <dt><kbd>Esc</kbd></dt><dd>закрыть панель, меню или свернуть отчёт</dd>
-      <dt><kbd>←</kbd><kbd>→</kbd></dt><dd>предыдущая и следующая сделка в открытом отчёте</dd>
-    </dl>
     <p class="muted small">Каждый шаг агента записан в трассу: что понял, какие инструменты вызвал, сколько токенов и времени
       потратил. Она в разделе «Проверка» подробной аналитики. Документация API: <a href="/docs" target="_blank" rel="noopener">/docs</a>.</p>
   </div>
@@ -147,6 +155,6 @@
 <div class="toast" id="toast" role="status" hidden></div>
 <script src="/static/vendor/plotly.min.js"></script>
 <script src="/static/signal.js"></script>
-<script src="/static/app.js?v=26"></script>
+<script src="/static/app.js?v=34"></script>
 </body>
 </html>

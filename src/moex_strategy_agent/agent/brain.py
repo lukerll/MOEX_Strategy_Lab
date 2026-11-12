@@ -120,7 +120,7 @@ class FallbackBrain:
                    dialog: list[dict[str, str]] | None = None) -> Understanding:
         raise ModelUnavailable("модель недоступна", kind="no_key")
 
-    def narrate(self, res: BacktestResult) -> str:
+    def narrate(self, res: BacktestResult, style: str = "full") -> str:
         return template_narrative(res)
 
     def followup(self, intent: str, text: str, run_id: str | None, state: dict[str, Any],
@@ -303,10 +303,10 @@ class LLMBrain(FallbackBrain):
                              options=_options(js.get("options")) if question else [], dropped=dropped,
                              target_id=js.get("target_id"), reasoning=str(js.get("reasoning", ""))[:300])
 
-    def narrate(self, res: BacktestResult) -> str:
+    def narrate(self, res: BacktestResult, style: str = "full") -> str:
         facts = build_facts(res)
         allowed = numbers_in(facts)
-        content = prompts.NARRATE.format(facts=json.dumps(facts, ensure_ascii=False, indent=1),
+        content = prompts.NARRATE.format(length=prompts.NARRATE_LENGTH[style if style in prompts.NARRATE_LENGTH else "full"], facts=json.dumps(facts, ensure_ascii=False, indent=1),
                                          news=news_block(res))
         messages = [{"role": "system", "content": content},
                     {"role": "user", "content": "Объясни результат бэктеста."}]

@@ -387,3 +387,24 @@ scenarios:
     expect:
       run_created: true
       spec: {ticker: GAZP, strategy_type: SMA_CROSSOVER}
+
+  - id: R14_glossary_question
+    group: robustness
+    title: Вопрос о непонятных терминах получает объяснение, а не повтор справки
+    turns:
+      - "что ты умеешь?"
+      - "А что делать если я не понимаю все эти обозначения SMA EMA и так далее ?"
+    expect:
+      intent: glossary
+      run_created: false
+      text_contains: ["необязательно", "RSI"]
+
+  - id: R15_plain_words_strategy
+    group: robustness
+    title: Стратегия без терминов из примера агента считается сразу
+    turns: ["Сбер за 2023-2025, покупаю, когда цена за 20 дней упала на 10%, продаю через 20 дней"]
+    expect:
+      run_created: true
+      verification: OK
+      spec: {ticker: SBER, strategy_type: RULES}
+      rules_contain: ['"type": "change"', '"max_hold_days": 20']

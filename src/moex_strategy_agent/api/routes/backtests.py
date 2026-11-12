@@ -97,3 +97,15 @@ def request_delete(research_id: str, session_id: str = Query(..., pattern=r"^[A-
         raise HTTPException(422, r.error)
     p = svc.repo.get_pending(r.action_id)
     return {"action_id": r.action_id, "description": p["description"], "trace_id": tracer.trace_id}
+
+
+@router.post("/history/clear")
+def request_clear_history(session_id: str = Query(..., pattern=r"^[A-Za-z0-9_-]{1,40}$"), svc: Services = Depends(services)) -> dict:
+    """Не очищает, а создаёт действие, ждущее подтверждения человека. Избранное остаётся."""
+    svc.repo.ensure_session(session_id)
+    runner, tracer = _runner(svc, session_id)
+    r = runner.call("clear_history", {})
+    if not r.awaiting_confirmation:
+        raise HTTPException(422, r.error)
+    p = svc.repo.get_pending(r.action_id)
+    return {"action_id": r.action_id, "description": p["description"], "trace_id": tracer.trace_id}

@@ -120,6 +120,16 @@ def main() -> int:
     except (LLMError, httpx.HTTPError) as e:
         fail(f"список моделей не получен: {e}")
 
+    # остаток токенов: метод отвечает не на всех тарифах, это не ошибка
+    try:
+        bal = client.balance()
+    except (LLMError, httpx.HTTPError, ValueError):
+        bal = None
+    if bal:
+        ok("остаток: " + ", ".join(f"{b['model']} {b['tokens']:,}".replace(",", " ") for b in bal))
+    else:
+        print("  остаток токенов API не сообщает, смотрите его в личном кабинете")
+
     # 4. формализация
     print("\n4. Формализация стратегий")
     repo = Repository(Database(":memory:"))

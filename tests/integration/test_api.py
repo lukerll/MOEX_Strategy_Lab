@@ -27,7 +27,8 @@ def test_chat_report_and_confirm(settings):
     assert "<svg" in html and "Не является индивидуальной инвестиционной рекомендацией" in html
     assert "@font-face" in html                                      # отчёт автономный
     csv = c.get(f"/api/runs/{run_id}/trades.csv").text
-    assert csv.lstrip("﻿").startswith("entry_date;exit_date")
+    assert csv.lstrip("﻿").startswith("Дата покупки;Дата продажи")
+    assert "." not in csv.splitlines()[1].split(";")[3]                # цена с запятой для русского Excel
 
     save = c.post(f"/api/runs/{run_id}/save", json={"session_id": sid}).json()
     assert c.get("/api/research").json()["research"] == []

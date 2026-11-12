@@ -119,6 +119,16 @@ class OpenAICompatibleClient:
             raise LLMError(f"{self.name}: /models HTTP {r.status_code}", retryable=False)
         return [m.get("id", "") for m in r.json().get("data", [])]
 
+    def balance(self) -> list[dict[str, Any]] | None:
+        """Остаток токенов по моделям. None, если провайдер его не сообщает (нет метода или тариф без пакетов)."""
+        if self.conf.get("auth") != "gigachat_oauth":
+            return None
+        r = self._http.get(f"{self.base_url}/balance", headers=self._auth_header())
+        if r.status_code != 200:
+            return None
+        rows = r.json().get("balance") or []
+        return [{"model": str(x.get("usage", "")), "tokens": int(x.get("value", 0))} for x in rows if isinstance(x, dict)]
+
     def cost(self, tokens: int) -> float:
         return tokens / 1000 * self.price
 

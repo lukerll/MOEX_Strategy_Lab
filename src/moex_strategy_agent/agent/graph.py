@@ -32,6 +32,7 @@ from ..telemetry.tracing import Tracer
 from .brain import FallbackBrain, LLMBrain, LLMGateway, ModelUnavailable
 from ..analysis.explanations import no_trades_narrative, ru_decimals
 from ..analysis.sanity import no_trades_suggestion
+from . import glossary
 from . import scope as scope_guard
 from .guardrails import DISCLAIMER, Budget, BudgetExceeded, check_user_input
 from .state import AgentReply, Understanding
@@ -96,11 +97,12 @@ class Agent:
     # ---------- вход ----------
 
     def handle(self, session_id: str | None, text: str, on_event: Any = None,
-               default_cash: float | None = None) -> AgentReply:
+               default_cash: float | None = None, style: str = "full") -> AgentReply:
         sid = self.repo.ensure_session(session_id)
         state = self.repo.get_state(sid)
         if default_cash:
             state["_default_cash"] = float(default_cash)     # из настроек интерфейса, только на этот запрос
+        state["_style"] = "short" if style == "short" else "full"
         tracer = Tracer(self.repo, sid, self.settings.path("app.logs_dir"), listener=on_event)
         budget = Budget(**{k: self.settings.get(f"agent.{v}") for k, v in {
             "max_steps": "max_steps", "max_tool_calls": "max_tool_calls", "max_llm_calls": "max_llm_calls",
@@ -135,10 +137,12 @@ class Agent:
         except Exception:  # noqa: BLE001, подсказки не должны ломать ответ
             reply.suggestions = []
         reply.text = tidy_prose(reply.text)
+        state["last_intent"] = reply.intent
         reply.budget = budget.snapshot()
         reply.tools_called = runner.called
         reply.provider = gateway.used_provider
         state.pop("_default_cash", None)
+        state.pop("_style", None)
         self.repo.set_state(sid, state)
         self.repo.add_message(sid, "assistant", reply.text,
                               {"trace_id": tracer.trace_id, "run_id": reply.run_id, "blocks": reply.blocks,
@@ -171,6 +175,15 @@ class Agent:
             reply.intent, reply.text = "out_of_scope", INJECTION_REFUSAL
             reply.flags.append("injection_blocked")
             tracer.event("guardrail", "user_injection_blocked", {})
+            return
+
+        # вопрос о терминах: объяснение из словаря, модель не нужна
+        kind = glossary.detect(verdict.text)
+        if kind:
+            reply.intent = "glossary"
+            reply.text, state["_options"] = glossary.answer(kind)
+            tracer.event("node", "glossary", {"kind": kind})
+            state.pop("dialog", None)
             return
 
         # границы возможностей проверяет код, до модели: агент не подменяет запрос похожим
@@ -246,7 +259,13 @@ class Agent:
                 reply.text = (u.question or "Такую стратегию я пока не умею записать правилами.") + \
                     f" Что умею: {scope_guard.SUPPORTED_TEXT}."
         elif u.intent == "help":
-            reply.text = HELP
+            if state.get("last_intent") == "help":
+                # справка уже была: повторять её бесполезно, спрашиваем, что именно неясно
+                reply.text = ("Что именно непонятно: как описать стратегию или что значат обозначения "
+                              "вроде SMA и RSI?")
+                state["_options"] = ["покажи пример стратегии простыми словами", "что значат SMA, RSI и стоп-лосс?"]
+            else:
+                reply.text = HELP
         elif u.intent == "out_of_scope":
             reply.text = OUT_OF_SCOPE
         else:
@@ -460,7 +479,7 @@ class Agent:
         budget.step()
         tracer.event("stage", "narrate", {})
         res = runner.ctx.repo.get_run(run_id)
-        narrative = no_trades_narrative(res) or brain.narrate(res)
+        narrative = no_trades_narrative(res) or brain.narrate(res, state.get("_style", "full"))
         if res.verification.status == "FAIL" and "не подтвержден" not in narrative:
             narrative = "Внимание: независимая сверка не прошла, метрики не подтверждены. " + narrative
         narrative = tidy_prose(narrative)
@@ -498,7 +517,7 @@ class Agent:
         options = state.pop("_options", None)
         if "model_unavailable" in reply.flags:
             return []                      # без модели примеры всё равно не сработают
-        if options and intent in ("clarify", "unsupported") and not reply.run_id:
+        if options and intent in ("clarify", "unsupported", "glossary", "help") and not reply.run_id:
             return options[:3]             # готовые ответы на заданный вопрос
         if reply.run_id:
             res = self.repo.get_run(reply.run_id)
@@ -588,6 +607,8 @@ class Agent:
         tracer.event("guardrail", "action_confirmed", {"action_id": action_id, "tool": p["tool"], "ok": r.ok})
         if r.ok and p["tool"] == "save_research":
             text = f"Сохранено: «{r.data['title']}». Найдёте в разделе «Сохранённое»."
+        elif r.ok and p["tool"] == "clear_history":
+            text = f"История очищена, удалено запусков: {r.data['deleted']}."
         elif r.ok and p["tool"] == "delete_run":
             text = "Удалено из истории." + (" Из избранного тоже." if r.data.get("favorites_removed") else "")
         elif r.ok:

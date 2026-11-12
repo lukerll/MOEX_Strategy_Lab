@@ -9,24 +9,35 @@ from ..domain.schemas import BacktestResult
 from .report_builder import build_html
 
 
+_REASON_RU = {"signal": "сигнал", "stop_loss": "стоп-лосс", "take_profit": "тейк-профит", "trailing": "трейлинг-стоп",
+              "max_hold": "срок удержания", "atr_stop": "стоп по ATR", "end": "конец периода"}
+
+
+def _n(v: float | None, digits: int = 2) -> str:
+    """Число с запятой: русский Excel читает точку как дату или текст."""
+    return "" if v is None else f"{v:.{digits}f}".replace(".", ",")
+
+
 def trades_csv(res: BacktestResult) -> str:
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";")
-    w.writerow(["entry_date", "exit_date", "size", "entry_price", "exit_price", "pnl", "return_pct",
-                "commission", "holding_days", "is_open", "exit_reason"])
+    w.writerow(["Дата покупки", "Дата продажи", "Акций", "Цена покупки, ₽", "Цена продажи, ₽", "Результат, ₽",
+                "Результат, %", "Комиссия, ₽", "Дней в позиции", "Причина выхода"])
     for t in res.trades:
-        w.writerow([t.entry_date, t.exit_date or "", t.size, f"{t.entry_price:.4f}",
-                    "" if t.exit_price is None else f"{t.exit_price:.4f}", f"{t.pnl:.2f}",
-                    f"{t.return_pct:.4f}", f"{t.commission:.2f}", t.holding_days, int(t.is_open), t.exit_reason or ""])
+        reason = "позиция открыта" if t.is_open else _REASON_RU.get(t.exit_reason or "", t.exit_reason or "")
+        w.writerow([t.entry_date, t.exit_date or "", t.size, _n(t.entry_price, 4), _n(t.exit_price, 4), _n(t.pnl),
+                    _n(t.return_pct), _n(t.commission), t.holding_days, reason])
     return buf.getvalue()
 
 
 def equity_csv(res: BacktestResult) -> str:
     buf = io.StringIO()
-    keys = ["date", "close", "position", "equity", "benchmark", "drawdown", "benchmark_drawdown"]
-    w = csv.DictWriter(buf, fieldnames=keys, delimiter=";", extrasaction="ignore")
-    w.writeheader()
-    w.writerows(res.equity)
+    w = csv.writer(buf, delimiter=";")
+    w.writerow(["Дата", "Цена закрытия, ₽", "Акций", "Капитал стратегии, ₽", "Капитал «купить и держать», ₽",
+                "Просадка стратегии, %", "Просадка «купить и держать», %"])
+    for r in res.equity:
+        w.writerow([r["date"], _n(r["close"], 4), r["position"], _n(r["equity"]), _n(r["benchmark"]),
+                    _n(r["drawdown"], 3), _n(r["benchmark_drawdown"], 3)])
     return buf.getvalue()
 
 

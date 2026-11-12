@@ -145,6 +145,22 @@ class Repository:
         return [{**{k: r[k] for k in ("seq", "kind", "name", "tokens", "cost_rub", "latency_ms", "created_at")},
                  "payload": json.loads(r["payload_json"])} for r in rows]
 
+    def usage(self) -> dict[str, Any]:
+        """Расход по обращениям к модели: сегодня (по UTC) и за всё время. Источник: трасса."""
+        def one(where: str, params: tuple = ()) -> dict[str, Any]:
+            r = self.db.query("SELECT COUNT(DISTINCT trace_id) n, SUM(tokens) t, SUM(cost_rub) c FROM trace_events "
+                              "WHERE kind='llm'" + where, params)[0]
+            return {"requests": r["n"] or 0, "tokens": r["t"] or 0, "cost_rub": round(r["c"] or 0, 2)}
+        return {"today": one(" AND created_at >= ?", (_now()[:10],)), "total": one("")}
+
+    def clear_history(self) -> dict[str, Any]:
+        """Удаляет запуски, которых нет в избранном. Избранное и переписка остаются."""
+        ids = [r["id"] for r in self.db.query(
+            "SELECT id FROM runs WHERE id NOT IN (SELECT run_id FROM research)")]
+        for run_id in ids:
+            self.delete_run(run_id)
+        return {"deleted": len(ids), "kept_favorites": len(self.list_research(500))}
+
     def trace_stats(self) -> dict[str, Any]:
         r = self.db.query("SELECT COUNT(DISTINCT trace_id) n, SUM(tokens) t, SUM(cost_rub) c FROM trace_events")[0]
         return {"traces": r["n"] or 0, "tokens": r["t"] or 0, "cost_rub": round(r["c"] or 0, 4)}

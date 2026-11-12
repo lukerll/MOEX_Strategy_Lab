@@ -89,6 +89,10 @@ class DeleteRunArgs(BaseModel):
     run_id: str = Field(..., pattern=r"^[0-9a-f]{10}$")
 
 
+class ClearHistoryArgs(BaseModel):
+    model_config = {"extra": "forbid"}
+
+
 # ---------- инфраструктура ----------
 
 
@@ -239,6 +243,10 @@ def t_save_research(ctx: ToolContext, a: SaveResearchArgs) -> Any:
     return {"research_id": rid, "title": a.title}
 
 
+def t_clear_history(ctx: ToolContext, a: ClearHistoryArgs) -> Any:
+    return ctx.repo.clear_history()
+
+
 def t_delete_run(ctx: ToolContext, a: DeleteRunArgs) -> Any:
     out = ctx.repo.delete_run(a.run_id)
     if not out["deleted"]:
@@ -273,6 +281,8 @@ TOOLS: dict[str, ToolSpec] = {t.name: t for t in [
              DeleteResearchArgs, "action", t_delete_research),
     ToolSpec("delete_run", "Удалить запуск из истории (только из интерфейса, нужно подтверждение пользователя)",
              DeleteRunArgs, "action", t_delete_run),
+    ToolSpec("clear_history", "Очистить историю запусков, кроме избранного (только из настроек, нужно подтверждение пользователя)",
+             ClearHistoryArgs, "action", t_clear_history),
 ]}
 
 READ_TOOLS = {n for n, t in TOOLS.items() if t.kind == "read"}
@@ -282,6 +292,9 @@ REACT_TOOLS = READ_TOOLS | {"find_news", "save_research", "delete_research"}
 def describe_action(tool: str, args: dict[str, Any], repo: Repository) -> str:
     if tool == "save_research":
         return f"Сохранить «{args.get('title')}» в раздел «Сохранённое»"
+    if tool == "clear_history":
+        favs = len(repo.list_research(500))
+        return "Очистить историю запусков" + (f". Избранное ({favs}) останется" if favs else "")
     if tool == "delete_run":
         run = repo.get_run(args.get("run_id", ""))
         title = run.spec.title() if run else args.get("run_id")

@@ -125,6 +125,7 @@ def build_html(res: BacktestResult) -> str:
 
     return f"""<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{escape(s.title())}: отчёт</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23000a06'/%3E%3Cg transform='translate%2832 33%29 scale%28.86%29 translate%28-32 -36%29'%3E%3Cpath d='M12 46V34a20 20 0 0 1 40 0v12' fill='none' stroke='%23ffffff' stroke-width='9' stroke-linecap='round'/%3E%3Cpath d='M25 31v14' stroke='%23ffffff' stroke-width='2' stroke-linecap='round'/%3E%3Crect x='21.5' y='34' width='7' height='8' rx='1.5' fill='%23ffffff'/%3E%3Cpath d='M39 26v21' stroke='%237affb4' stroke-width='2' stroke-linecap='round'/%3E%3Crect x='35.5' y='29' width='7' height='14' rx='1.5' fill='%237affb4'/%3E%3C/g%3E%3C/svg%3E">
 <style>{font_css()}{CSS}</style></head><body>
 <section class="band"><div class="wrap">
 <div class="eyebrow">MOEX Strategy Agent / отчёт {res.run_id}</div>
