@@ -193,7 +193,15 @@ class Agent:
             state.pop("draft", None)
             state.pop("dialog", None)
             tickers = scope_guard.find_tickers(verdict.text)
-            if scope["kind"] == "unsupported":
+            if scope["kind"] == "foreign":
+                reply.intent = "unsupported"
+                reply.flags.append("foreign_security")
+                what = "Криптовалюты" if scope["name"] == "криптовалюта" else scope["name"]
+                reply.text = (f"{what} на Мосбирже в основном режиме торгов нет, а котировки я беру только оттуда: "
+                              "это российские акции. Иностранные бумаги, индексы и криптовалюту проверить не смогу. "
+                              "Могу посчитать ту же идею на российской акции.")
+                state["_options"] = list(scope_guard.FOREIGN_OPTIONS)
+            elif scope["kind"] == "unsupported":
                 reply.intent = "unsupported"
                 reply.flags.append("unsupported_strategy")
                 if scope.get("offer"):
@@ -432,7 +440,9 @@ class Agent:
             found = runner.call("search_security", {"query": spec.ticker})
             options = [r for r in (found.data or []) if r.get("ticker") != spec.ticker] if found.ok else []
             reply.intent = "clarify"
-            reply.text = f"Котировок {spec.ticker} за этот период нет ({md.error})."
+            tracer.event("data", "no_data", {"error": md.error})          # техническая причина остаётся в трассе
+            reply.text = (f"На Мосбирже нет котировок {spec.ticker} с {spec.start_date:%d.%m.%Y} по {spec.end_date:%d.%m.%Y}: "
+                          "такой бумаги нет в основном режиме торгов или по ней не было сделок в эти даты.")
             if options:
                 reply.text += " Возможно, вы имели в виду: " + ", ".join(
                     f"{o['ticker']} ({o['name']})" for o in options[:5]) + "?"

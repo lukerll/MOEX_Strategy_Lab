@@ -11,7 +11,7 @@ from ...domain.validators import validate_spec
 from ...telemetry.tracing import Tracer
 from ..deps import Services, get_run_or_404, services
 
-router = APIRouter(prefix="/api", tags=["backtests"])
+router = APIRouter(prefix="/api", tags=["Бэктесты и избранное"])
 
 
 def _runner(svc: Services, session_id: str) -> tuple[ToolRunner, Tracer]:
@@ -21,7 +21,8 @@ def _runner(svc: Services, session_id: str) -> tuple[ToolRunner, Tracer]:
     return ToolRunner(ctx, tracer, budget), tracer
 
 
-@router.post("/backtests")
+@router.post("/backtests", summary="Бэктест без агента",
+             description="Считает стратегию по готовому описанию в JSON, модель не участвует. Удобно для проверки движков и повторяемых расчётов. Ответ: результат, сверка двух движков и новости рядом с резкими движениями.")
 def create_backtest(spec: StrategySpec, session_id: str | None = None, with_news: bool = True,
                     svc: Services = Depends(services)) -> dict:
     rep = validate_spec(spec, min_days=svc.settings.get("data.min_period_days", 60),
@@ -42,12 +43,14 @@ def create_backtest(spec: StrategySpec, session_id: str | None = None, with_news
     return {"session_id": sid, "trace_id": tracer.trace_id, "result": res.model_dump(mode="json")}
 
 
-@router.get("/runs")
+@router.get("/runs", summary="Последние запуски",
+             description="Список запусков, новые сверху. С `session_id` только запуски этой сессии.")
 def list_runs(limit: int = 20, session_id: str | None = None, svc: Services = Depends(services)) -> dict:
     return {"runs": svc.repo.list_runs(min(limit, 100), session_id)}
 
 
-@router.get("/runs/{run_id}")
+@router.get("/runs/{run_id}", summary="Запуск целиком",
+             description="Всё по одному запуску: стратегия, метрики, сравнение с держанием, сделки, кривая капитала, сверка движков и диагностика.")
 def get_run(run_id: str, svc: Services = Depends(services)) -> dict:
     return get_run_or_404(svc, run_id).model_dump(mode="json")
 
@@ -57,7 +60,8 @@ class SaveIn(BaseModel):
     title: str | None = Field(None, max_length=120)
 
 
-@router.post("/runs/{run_id}/save")
+@router.post("/runs/{run_id}/save", summary="Сохранить в избранное",
+             description="Ничего не сохраняет сразу: создаёт действие и возвращает `action_id`. Сохранится после «Подтвердить действие».")
 def request_save(run_id: str, body: SaveIn, svc: Services = Depends(services)) -> dict:
     """Не сохраняет, а создаёт действие, ждущее подтверждения человека."""
     res = get_run_or_404(svc, run_id)
@@ -70,7 +74,8 @@ def request_save(run_id: str, body: SaveIn, svc: Services = Depends(services)) -
     return {"action_id": r.action_id, "description": p["description"], "trace_id": tracer.trace_id}
 
 
-@router.post("/runs/{run_id}/delete")
+@router.post("/runs/{run_id}/delete", summary="Удалить запуск",
+             description="Создаёт действие на удаление. Удалится после «Подтвердить действие».")
 def request_run_delete(run_id: str, session_id: str = Query(..., pattern=r"^[A-Za-z0-9_-]{1,40}$"), svc: Services = Depends(services)) -> dict:
     """Не удаляет, а создаёт действие, ждущее подтверждения человека."""
     get_run_or_404(svc, run_id)
@@ -83,12 +88,14 @@ def request_run_delete(run_id: str, session_id: str = Query(..., pattern=r"^[A-Z
     return {"action_id": r.action_id, "description": p["description"], "trace_id": tracer.trace_id}
 
 
-@router.get("/research")
+@router.get("/research", summary="Избранное",
+             description="Сохранённые исследования с названиями.")
 def research(svc: Services = Depends(services)) -> dict:
     return {"research": svc.repo.list_research()}
 
 
-@router.post("/research/{research_id}/delete")
+@router.post("/research/{research_id}/delete", summary="Удалить из избранного",
+             description="Создаёт действие на удаление. Удалится после «Подтвердить действие».")
 def request_delete(research_id: str, session_id: str = Query(..., pattern=r"^[A-Za-z0-9_-]{1,40}$"), svc: Services = Depends(services)) -> dict:
     svc.repo.ensure_session(session_id)
     runner, tracer = _runner(svc, session_id)
@@ -99,7 +106,8 @@ def request_delete(research_id: str, session_id: str = Query(..., pattern=r"^[A-
     return {"action_id": r.action_id, "description": p["description"], "trace_id": tracer.trace_id}
 
 
-@router.post("/history/clear")
+@router.post("/history/clear", summary="Очистить историю",
+             description="Создаёт действие на очистку истории запусков сессии, избранное остаётся. Очистится после «Подтвердить действие».")
 def request_clear_history(session_id: str = Query(..., pattern=r"^[A-Za-z0-9_-]{1,40}$"), svc: Services = Depends(services)) -> dict:
     """Не очищает, а создаёт действие, ждущее подтверждения человека. Избранное остаётся."""
     svc.repo.ensure_session(session_id)

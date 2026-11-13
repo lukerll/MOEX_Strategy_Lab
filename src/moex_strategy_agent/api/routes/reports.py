@@ -8,10 +8,11 @@ from ...reporting.export import equity_csv, save_report, trades_csv
 from ...reporting.report_builder import build_html
 from ..deps import Services, get_run_or_404, services
 
-router = APIRouter(prefix="/api/runs", tags=["reports"])
+router = APIRouter(prefix="/api/runs", tags=["Отчёты"])
 
 
-@router.get("/{run_id}/report.html", response_class=HTMLResponse)
+@router.get("/{run_id}/report.html", response_class=HTMLResponse, summary="Отчёт HTML",
+             description="Отчёт по запуску одной страницей. С `download=true` скачивается файлом.")
 def report_html(run_id: str, download: bool = False, svc: Services = Depends(services)) -> HTMLResponse:
     res = get_run_or_404(svc, run_id)
     save_report(res, svc.settings.path("app.reports_dir"))
@@ -19,14 +20,16 @@ def report_html(run_id: str, download: bool = False, svc: Services = Depends(ser
     return HTMLResponse(build_html(res), headers=headers)
 
 
-@router.get("/{run_id}/trades.csv")
+@router.get("/{run_id}/trades.csv", summary="Сделки CSV",
+             description="Сделки запуска для Excel: русские заголовки, числа с запятой.")
 def report_trades(run_id: str, svc: Services = Depends(services)) -> Response:
     res = get_run_or_404(svc, run_id)
     return Response("﻿" + trades_csv(res), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{run_id}_trades.csv"'})
 
 
-@router.get("/{run_id}/equity.csv")
+@router.get("/{run_id}/equity.csv", summary="Капитал по дням CSV",
+             description="Кривая капитала стратегии и держания по дням для Excel.")
 def report_equity(run_id: str, svc: Services = Depends(services)) -> Response:
     res = get_run_or_404(svc, run_id)
     return Response("﻿" + equity_csv(res), media_type="text/csv; charset=utf-8",

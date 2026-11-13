@@ -88,6 +88,7 @@ class FakeGigaChat:
         self.narrate = narrate
         self.requests: list[dict] = []
         self.oauth_calls = 0
+        self.balance_rows: list[dict] | None = None     # None: как при оплате по факту, /balance отвечает 403
 
     # ---------- HTTP ----------
     def handler(self, request: httpx.Request) -> httpx.Response:
@@ -100,6 +101,10 @@ class FakeGigaChat:
                                               "expires_at": int((time.time() + 1800) * 1000)})
         if request.headers.get("Authorization") != "Bearer fake-token":
             return httpx.Response(401, json={"message": "no token"})
+        if url.endswith("/balance"):
+            if self.balance_rows is None:
+                return httpx.Response(403, json={"message": "pay-as-you-go"})
+            return httpx.Response(200, json={"balance": self.balance_rows})
         if url.endswith("/models"):
             return httpx.Response(200, json={"data": [{"id": "GigaChat-2-Max"}, {"id": "GigaChat-2"}]})
         body = json.loads(request.content)

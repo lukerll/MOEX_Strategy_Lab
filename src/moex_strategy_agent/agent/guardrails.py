@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import html
 import re
 import time
 import unicodedata
@@ -116,7 +117,7 @@ def check_user_input(text: str) -> InputVerdict:
 
 def sanitize_untrusted(text: str, limit: int = MAX_UNTRUSTED_CHARS) -> tuple[str, bool]:
     """Внешний текст (новости, метаданные): чистим, режем, проверяем на инъекцию."""
-    clean = normalize(text)
+    clean = html.unescape(html.unescape(normalize(text)))   # &quot; и дважды кодированное &amp;quot; из лент
     clean = re.sub(r"<[^>]{0,200}>", " ", clean)        # html/псевдо-теги
     clean = re.sub(r"\s+", " ", clean).strip()[:limit]
     return clean, bool(detect(INJECTION_PATTERNS, clean))

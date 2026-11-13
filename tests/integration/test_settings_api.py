@@ -55,3 +55,39 @@ def test_clear_history_needs_confirmation_and_keeps_favorites(settings):
     assert done["ok"] and "удалено запусков: 1" in done["text"]
     left = c.get("/api/runs").json()["runs"]
     assert [r["run_id"] for r in left] == [a["run_id"]] and len(c.get("/api/research").json()["research"]) == 1
+
+
+def test_account_shows_balance_against_freemium_quota(settings, fake_llm):
+    fake_llm.balance_rows = [{"usage": "GigaChat", "value": 249_000_000}, {"usage": "GigaChat-Max", "value": 24_100_000},
+                             {"usage": "embeddings", "value": 1_000_000}]
+    a = TestClient(create_app(settings)).get("/api/account").json()
+    assert a["ok"] and a["scope_label"] == "Физическое лицо" and a["model"] == "GigaChat-2-Max"
+    assert [b["group"] for b in a["balance"]] == ["Lite", "Max"]               # эмбеддинги не показываем
+    mx = a["balance"][1]
+    assert mx == {"group": "Max", "tokens": 24_100_000, "quota": 25_000_000, "current": True}
+    assert {m["id"] for m in a["models"]} == {"GigaChat-2", "GigaChat-2-Max"} and not fake_llm.requests
+    assert [(c["group"], c["id"], c["current"]) for c in a["choices"]] == [("Lite", "GigaChat-2", False), ("Max", "GigaChat-2-Max", True)]
+    assert all(c["about"] and "₽" not in c["about"] for c in a["choices"])
+
+
+def test_account_without_balance_does_not_invent_numbers(settings, fake_llm):
+    a = TestClient(create_app(settings)).get("/api/account").json()
+    assert a["ok"] and a["balance"] is None
+
+
+def test_model_switch_applies_to_requests_and_survives_restart(settings, fake_llm):
+    c = TestClient(create_app(settings))
+    assert c.post("/api/account/model", json={"model": "GigaChat-7-Mega"}).status_code == 422
+    r = c.post("/api/account/model", json={"model": "GigaChat-2"}).json()
+    assert r["model"] == "GigaChat-2" and r["price_rub_per_1m"] == 65
+    c.post("/api/chat", json={"message": TZ})
+    assert fake_llm.requests and all(q["model"] == "GigaChat-2" for q in fake_llm.requests)
+    settings.provider_conf("gigachat")["model"] = "GigaChat-2-Max"            # как будто сервис перезапустили с конфигом по умолчанию
+    assert TestClient(create_app(settings)).get("/api/account").json()["model"] == "GigaChat-2"
+
+
+def test_model_choices_exist_even_without_gigachat(settings, monkeypatch):
+    monkeypatch.delenv("GIGACHAT_AUTH_KEY")
+    a = TestClient(create_app(settings)).get("/api/account").json()
+    assert not a["ok"] and [c["group"] for c in a["choices"]] == ["Lite", "Pro", "Max"]
+    assert next(c for c in a["choices"] if c["current"])["group"] == "Max"

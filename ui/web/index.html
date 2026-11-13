@@ -15,9 +15,10 @@
     d.dataset.theme = t; var v = JSON.parse(localStorage.getItem("msa_vars") || "null");
     if (v && v[t]) for (var k in v[t]) if (k.slice(0, 2) === "--") d.style.setProperty(k, v[t][k]);
     if (localStorage.getItem("msa_rail") === "1") d.classList.add("rail");
+    var w = +localStorage.getItem("msa_side"); if (w >= 200 && w <= 420) d.style.setProperty("--side", w + "px");
     if (localStorage.getItem("msa_signal") === "0") d.classList.add("no-signal"); } catch (e) { d.dataset.theme = "dark"; } })();
 </script>
-<link rel="stylesheet" href="/static/app.css?v=34">
+<link rel="stylesheet" href="/static/app.css?v=48">
 </head>
 <body class="fresh">
 
@@ -27,7 +28,7 @@
   <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 4.5l2.3 4.7 5.2.8-3.8 3.7.9 5.1L12 16.4l-4.6 2.4.9-5.1-3.8-3.7 5.2-.8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
   <symbol id="i-star-fill" viewBox="0 0 24 24"><path d="M12 4.5l2.3 4.7 5.2.8-3.8 3.7.9 5.1L12 16.4l-4.6 2.4.9-5.1-3.8-3.7 5.2-.8z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
   <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4.5 17a8.5 8.5 0 1 1 15 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M12 14l3.5-4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="14" r="1.4" fill="currentColor"/></symbol>
-  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><g transform="translate(12 12) scale(.86) translate(-12 -12)" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></g></symbol>
   <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9.8 9.6a2.3 2.3 0 1 1 3.2 2.1c-.6.3-1 .8-1 1.5v.4M12 16.6h.01" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
   <symbol id="i-side" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9.5 5v14" stroke="currentColor" stroke-width="1.6"/></symbol>
   <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -40,13 +41,24 @@
   <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 11v5M12 8h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M15.5 5.5v-.5a2 2 0 0 0-2-2H6.5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2H7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
   <symbol id="i-logo" viewBox="8 8 48 44"><path d="M12 46V34a20 20 0 0 1 40 0v12" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round"/><path d="M25 31v14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="21.5" y="34" width="7" height="8" rx="1.5" fill="currentColor"/><path d="M39 26v21" stroke="var(--logo)" stroke-width="2" stroke-linecap="round"/><rect x="35.5" y="29" width="7" height="14" rx="1.5" fill="var(--logo)"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v7a2.5 2.5 0 0 1-2.5 2.5H11l-4 3.5V16h0a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 9h6M9 12h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="6.5" rx="6.5" ry="2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 6.5v11c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5v-11M5.5 12c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-kbd" viewBox="0 0 24 24"><rect x="3.5" y="6.5" width="17" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 10h.01M10 10h.01M13 10h.01M16 10h.01M8 14h8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="9" r="3.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.5 19.5c1.2-3 3.7-4.5 6.5-4.5s5.3 1.5 6.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 16l4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="18" cy="12" r="1.5" fill="currentColor"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M5 12a7 7 0 0 1 12-4.9L19 9M19 4.5V9h-4.5M19 12a7 7 0 0 1-12 4.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10.5a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5zM14 3.5V8h4M9.5 13h5M9.5 16.5h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-table" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 10h16M4 14.5h16M10 10v9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l.8 12a1 1 0 0 0 1 .9h6.4a1 1 0 0 0 1-.9L17 7M10.3 11v5M13.7 11v5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="M8 10l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
 
 <header class="top">
   <button class="icon-btn" id="sideToggle" type="button" aria-controls="side" aria-expanded="true" aria-label="Свернуть боковую панель" data-tip="Свернуть панель">
     <svg><use href="#i-side"/></svg></button>
-  <a class="brand" href="/" id="brand" title="Новый анализ"><svg class="logo" aria-hidden="true"><use href="#i-logo"/></svg><span class="full">MOEX Strategy Agent</span><span class="short">MOEX Agent</span></a>
+  <a class="brand" href="/" id="brand" title="Новый анализ"><svg class="logo" viewBox="8 8 48 44" aria-hidden="true"><path class="lg-dome" d="M12 46V34a20 20 0 0 1 40 0v12" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round"/><g class="lg-c1"><path d="M25 31v14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="21.5" y="34" width="7" height="8" rx="1.5" fill="currentColor"/></g><g class="lg-c2"><path d="M39 26v21" stroke="var(--logo)" stroke-width="2" stroke-linecap="round"/><rect x="35.5" y="29" width="7" height="14" rx="1.5" fill="var(--logo)"/></g></svg><span class="full">MOEX Strategy Agent</span><span class="short">MOEX Agent</span></a>
 </header>
 
 <div class="shell">
@@ -57,17 +69,20 @@
       <button class="side-btn" type="button" data-list="fav" aria-pressed="false" data-tip="Избранное"><svg><use href="#i-star"/></svg><span class="lbl">Избранное</span><span class="cnt lbl" id="favCnt">0</span></button>
     </div>
     <div class="side-mid">
+      <label class="side-search"><svg aria-hidden="true"><use href="#i-search"/></svg>
+        <input id="sideSearch" type="search" placeholder="Найти запуск" autocomplete="off" spellcheck="false" aria-label="Найти запуск по бумаге или стратегии"></label>
       <div class="side-cap" id="listCap">Последние запросы</div>
       <div class="side-list" id="sideList"><p class="side-empty">Загружаю…</p></div>
     </div>
     <div class="side-bot">
-      <div class="usage-wrap"><button class="side-btn" id="usageBtn" type="button" data-tip="Расход" aria-haspopup="true" aria-expanded="false"><svg><use href="#i-gauge"/></svg><span class="lbl">Расход</span></button>
+      <div class="usage-wrap"><button class="side-btn" id="usageBtn" type="button" data-tip="Расход" aria-haspopup="true" aria-expanded="false"><svg class="ic-usage" viewBox="0 0 24 24" aria-hidden="true"><path class="sh l" d="M9.4 3.9A8.5 8.5 0 0 0 9.4 20.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path class="sh r" d="M14.6 3.9A8.5 8.5 0 0 1 14.6 20.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><g class="cd"><path d="M12 7.6v8.8" stroke="var(--logo)" stroke-width="1.4" stroke-linecap="round"/><rect x="10.2" y="9.4" width="3.6" height="5.2" rx="1" fill="var(--logo)"/></g></svg><span class="lbl">Расход</span></button>
         <div class="usage-pop" id="usagePop" role="dialog" aria-label="Расход токенов" hidden></div></div>
       <button class="side-btn" id="settingsBtn" type="button" data-tip="Настройки"><svg><use href="#i-gear"/></svg><span class="lbl">Настройки</span></button>
-      <button class="side-btn" id="howBtn" type="button" data-tip="Как это работает"><svg><use href="#i-help"/></svg><span class="lbl">Как это работает</span></button>
     </div>
   </aside>
   <div class="side-scrim" id="sideScrim" hidden></div>
+  <div class="side-grip" id="sideGrip" role="separator" aria-orientation="vertical" aria-controls="side" aria-label="Ширина боковой панели"
+    aria-valuemin="200" aria-valuemax="420" tabindex="0" title="Потяните, чтобы изменить ширину. Двойной клик вернёт обычную"></div>
 
   <main class="work" aria-label="Диалог с агентом">
     <div class="feed" id="feed">
@@ -99,9 +114,12 @@
       <div class="scope-hint" id="scopeHint" role="status" aria-live="polite" hidden></div>
       <form class="input-row" id="composer">
         <textarea id="input" rows="1" maxlength="2000" aria-label="Сообщение агенту" placeholder="Опишите торговую стратегию или задайте вопрос…"></textarea>
+        <button class="model-btn" type="button" id="modelBtn" aria-haspopup="menu" aria-expanded="false" title="Модель GigaChat">
+          <span id="modelName">GigaChat</span><svg aria-hidden="true"><use href="#i-chev"/></svg></button>
         <button class="send" type="submit" id="sendBtn" aria-label="Отправить">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </form>
+      <div class="model-menu" id="modelMenu" role="menu" aria-label="Модель GigaChat" hidden></div>
       <div class="composer-note">Enter отправить, Shift+Enter новая строка, <kbd class="mod">⌘</kbd><kbd>K</kbd> новый анализ. Только история, реальных сделок нет.</div>
     </div>
   </main>
@@ -120,31 +138,6 @@
     <div class="setbody" id="settingsBody"></div>
   </div>
 </div>
-<aside class="drawer" id="how" aria-label="Как это работает" hidden>
-  <div class="drawer-head"><b>Как это работает</b><button class="x" data-close aria-label="Закрыть"><svg><use href="#i-x"/></svg></button></div>
-  <div class="drawer-body how">
-    <p class="how-lead">AI объясняет, код считает, решение за вами. Вы описываете стратегию обычным языком,
-      агент переводит её в строгие правила, проверяет на истории Мосбиржи и объясняет результат.</p>
-    <ol class="how-steps">
-      <li><b>Слова в правила.</b> GigaChat собирает из описания дерево правил: условия на цене, объёме,
-        средних, RSI, MACD, полосах Боллинджера, стохастике, ATR, стопы и выход по времени. Кода модель не пишет.
-        Код проверяет каждое правило и возвращает ошибки модели на исправление.</li>
-      <li><b>Вопрос вместо догадки.</b> Если описание неоднозначно («покупаю на просадках»), агент переспрашивает
-        с готовым вариантом. Что он понял, видно в блоке «Как я понял стратегию».</li>
-      <li><b>Два расчёта.</b> Основной бэктест делает библиотека backtesting.py, контрольный написан с нуля.
-        Решение по закрытию дня, сделка по открытию следующего, комиссия и проскальзывание учтены. Если расчёты
-        разошлись, агент так и говорит.</li>
-      <li><b>Сравнение с простым держанием.</b> Каждая стратегия сравнивается с покупкой акции в первый день
-        периода. Диагностика ищет, где стратегия теряла деньги и не подогнан ли результат под историю.</li>
-      <li><b>Новости рядом, а не причина.</b> Резкие движения цены сопоставляются с новостями по датам.
-        Новость с попыткой управлять агентом скрывается до того, как её увидит модель.</li>
-      <li><b>Человек решает.</b> Сохранение и удаление ждут вашего «Да». Реальной торговли нет: такого
-        инструмента в системе не существует.</li>
-    </ol>
-    <p class="muted small">Каждый шаг агента записан в трассу: что понял, какие инструменты вызвал, сколько токенов и времени
-      потратил. Она в разделе «Проверка» подробной аналитики. Документация API: <a href="/docs" target="_blank" rel="noopener">/docs</a>.</p>
-  </div>
-</aside>
 <div class="scrim" id="scrim" hidden></div>
 
 <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalText" hidden>
@@ -154,7 +147,7 @@
 
 <div class="toast" id="toast" role="status" hidden></div>
 <script src="/static/vendor/plotly.min.js"></script>
-<script src="/static/signal.js"></script>
-<script src="/static/app.js?v=34"></script>
+<script src="/static/signal.js?v=48"></script>
+<script src="/static/app.js?v=48"></script>
 </body>
 </html>

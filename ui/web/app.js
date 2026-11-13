@@ -13,6 +13,7 @@
     signal: localStorage.getItem("msa_signal") !== "0", simple: localStorage.getItem("msa_simple") === "1", cash: +localStorage.getItem("msa_cash") || null };
 
   // ---------- форматирование ----------
+  const unent = (s) => { const t = document.createElement("textarea"); t.innerHTML = String(s ?? ""); t.innerHTML = t.value; return t.value; };
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const fmt = (v, d = 2) => { if (v == null || !isFinite(v)) return "н/д"; let n = Number(v); if (Math.abs(n) < 0.5 * 10 ** -d) n = 0;
     return n.toLocaleString("ru-RU", { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/\s/g, "\u00a0").replace("-", "−"); };
@@ -190,6 +191,40 @@
     syncToggle();
     setTimeout(resizePlots, 220);                                  // после анимации колонки
   }
+  // ширина боковой панели: тянется мышью за правый край, стрелками с клавиатуры; уже 170 px сворачивает в узкую
+  const SIDE = { min: 200, max: 420, base: 260 };
+  const grip = $("sideGrip");
+  const sideW = () => parseInt(getComputedStyle(root).getPropertyValue("--side")) || SIDE.base;
+  function setSide(w, save) {
+    w = Math.round(Math.max(SIDE.min, Math.min(SIDE.max, w)));
+    root.style.setProperty("--side", w + "px"); grip.setAttribute("aria-valuenow", w);
+    if (save) { try { localStorage.setItem("msa_side", String(w)); } catch (_) {} resizePlots(); }
+  }
+  grip.setAttribute("aria-valuenow", sideW());
+  grip.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault(); grip.setPointerCapture(e.pointerId);
+    const x0 = e.clientX, w0 = root.classList.contains("rail") ? 60 : sideW();
+    let w = w0;
+    root.classList.add("resizing");
+    const move = (ev) => {
+      w = w0 + ev.clientX - x0;
+      if (root.classList.contains("rail") && w > 120) setRail(false, true);
+      if (!root.classList.contains("rail")) setSide(w, false);
+    };
+    const up = () => {
+      grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up);
+      root.classList.remove("resizing");
+      if (w < 170 && !root.classList.contains("rail")) setRail(true); else if (!root.classList.contains("rail")) setSide(w, true);
+    };
+    grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up); grip.addEventListener("pointercancel", up);
+  });
+  grip.addEventListener("dblclick", () => { setRail(false); setSide(SIDE.base, true); });
+  grip.addEventListener("keydown", (e) => {
+    const d = { ArrowLeft: -16, ArrowRight: 16 }[e.key]; if (!d) return;
+    e.preventDefault(); if (root.classList.contains("rail")) setRail(false); else setSide(sideW() + d, true);
+  });
+
   function toggleSideMobile(open) {
     const on = open ?? !root.classList.contains("side-open");
     root.classList.toggle("side-open", on); $("sideScrim").hidden = !on; syncToggle();
@@ -207,37 +242,117 @@
     $("histCnt").textContent = state.hist.length; $("favCnt").textContent = state.favs.length;
     renderSide();
   }
+  // ---------- список: группы по датам, поиск, меню «⋯» ----------
+  const dayStart = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  function dateGroup(iso) {
+    if (!iso) return "Раньше";
+    const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + "Z"), today = dayStart(new Date()), day = dayStart(d), DAY = 864e5;
+    if (day >= today) return "Сегодня";
+    if (day >= today - DAY) return "Вчера";
+    if (day >= today - 6 * DAY) return "На этой неделе";
+    return "Раньше";
+  }
+  const norm = (s) => String(s || "").toLowerCase().replace(/ё/g, "е");
+  const matches = (x, q) => !q || norm(`${x.ticker} ${company(x.ticker || "")} ${x.strategy} ${x.title || ""}`).includes(q);
   function renderSide() {
-    const fav = state.list === "fav", items = fav ? state.favs : state.hist;
+    const fav = state.list === "fav", all = fav ? state.favs : state.hist, q = norm($("sideSearch").value.trim());
     $("listCap").textContent = fav ? "Избранное" : "Последние запросы";
+    $("listCap").hidden = all.length > 0;                  // при непустом списке его заменяют группы по датам
     document.querySelectorAll(".side-btn[data-list]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.list === state.list)));
-    if (!items.length) {
-      $("sideList").innerHTML = `<p class="side-empty">Пусто</p>`;
-      return;
-    }
-    $("sideList").innerHTML = items.map((x) => `<div class="side-item${x.run_id === state.active ? " active" : ""}" role="button" tabindex="0" data-run="${esc(x.run_id)}" data-sid="${esc(x.session_id || "")}">
+    if (!all.length) { $("sideList").innerHTML = `<p class="side-empty">Пусто</p>`; return; }
+    const items = all.filter((x) => matches(x, q));
+    if (!items.length) { $("sideList").innerHTML = `<p class="side-empty">Ничего не нашлось</p>`; return; }
+    let last = null;
+    $("sideList").innerHTML = items.map((x) => {
+      const g = dateGroup(x.created_at), head = g !== last ? `<div class="side-grp">${g}</div>` : ""; last = g;
+      return `${head}<div class="side-item${x.run_id === state.active ? " active" : ""}" role="button" tabindex="0" data-run="${esc(x.run_id)}" data-sid="${esc(x.session_id || "")}">
         <span class="t">${esc(company(x.ticker || ""))}, ${esc(shortStrategy(x))}</span>
         <span class="s">${x.start_date ? period(x) : ""}<span class="r ${tone(x.total_return_pct)}">${pct(x.total_return_pct, true, 1)}</span></span>
-        ${fav ? `<button class="del" type="button" data-del="${esc(x.id)}" aria-label="Убрать из избранного" title="Убрать из избранного"><svg><use href="#i-x"/></svg></button>`
-              : `<button class="del" type="button" data-delrun="${esc(x.run_id)}" aria-label="Удалить из истории" title="Удалить из истории"><svg><use href="#i-x"/></svg></button>`}
-      </div>`).join("");
+        <button class="del" type="button" data-menu="${esc(x.run_id)}" aria-haspopup="menu" aria-label="Действия с запуском" title="Действия"><svg><use href="#i-more"/></svg></button>
+      </div>`;
+    }).join("");
   }
+  $("sideSearch").addEventListener("input", renderSide);
+  $("sideSearch").addEventListener("keydown", (e) => { if (e.key === "Escape" && e.target.value) { e.stopPropagation(); e.target.value = ""; renderSide(); } });
+
+  // текст для «Повторить с правками»: исходная реплика из диалога, а если она была ответом на уточнение, описание стратегии
+  async function repeatText(x) {
+    const fallback = `${company(x.ticker)}, ${shortStrategy(x)}, с ${fmtDate(x.start_date)} по ${fmtDate(x.end_date)}`;
+    if (!x.session_id) return fallback;
+    try {
+      const m = (await api(`/api/sessions/${encodeURIComponent(x.session_id)}/messages`)).messages;
+      const i = m.findIndex((r) => r.role === "assistant" && r.meta && r.meta.run_id === x.run_id);
+      const u = i > 0 ? [...m.slice(0, i)].reverse().find((r) => r.role === "user") : null;
+      const said = u && u.content.trim(), low = norm(said);
+      if (said && (low.includes(norm(x.ticker)) || low.includes(norm(company(x.ticker)).slice(0, 5)))) return said;
+    } catch (_) {}
+    return fallback;
+  }
+  const fmtDate = (s) => s ? s.split("-").reverse().join(".") : "";
+  const download = (url) => { const a = document.createElement("a"); a.href = url; a.download = ""; document.body.appendChild(a); a.click(); a.remove(); };
+
+  let menu = null;
+  function closeMenu(focusBack = false) {
+    if (!menu) return;
+    const btn = menu.btn; menu.el.remove(); document.removeEventListener("pointerdown", menu.out, true);
+    btn.classList.remove("open"); btn.setAttribute("aria-expanded", "false"); menu = null;
+    if (focusBack) btn.focus();
+  }
+  function openMenu(btn) {
+    closeMenu();
+    const runId = btn.dataset.menu, src = state.list === "fav" ? state.favs : state.hist, x = src.find((r) => r.run_id === runId);
+    if (!x) return;
+    const favRec = state.favs.find((r) => r.run_id === runId);
+    const items = [
+      ["redo", "Повторить с правками", "i-redo"],
+      ["html", "Скачать отчёт HTML", "i-file"],
+      ["csv", "Скачать сделки CSV", "i-table"],
+      favRec ? ["unfav", "Убрать из избранного", "i-star-fill"] : ["fav", "В избранное", "i-star"],
+      ...(state.list === "fav" ? [] : [["del", "Удалить из истории", "i-trash"]]),
+    ];
+    const el = document.createElement("div"); el.className = "run-menu"; el.setAttribute("role", "menu");
+    el.innerHTML = items.map(([k, label, ic]) => `${k === "del" ? '<div class="rm-sep"></div>' : ""}<button type="button" role="menuitem" data-act="${k}" class="${k === "del" ? "danger" : ""}"><svg><use href="#${ic}"/></svg>${label}</button>`).join("");
+    document.body.appendChild(el);
+    const r = btn.getBoundingClientRect(), h = el.offsetHeight;
+    el.style.left = Math.min(r.right - 8, innerWidth - el.offsetWidth - 8) + "px";
+    el.style.top = (r.bottom + h + 8 > innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4) + "px";
+    btn.classList.add("open"); btn.setAttribute("aria-expanded", "true");
+    menu = { el, btn, out: (e) => { if (!el.contains(e.target) && e.target.closest("[data-menu]") !== btn) closeMenu(); } };
+    document.addEventListener("pointerdown", menu.out, true);
+    el.addEventListener("keydown", (e) => {
+      const bs = [...el.querySelectorAll("button")], i = bs.indexOf(document.activeElement);
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeMenu(true); }
+      else if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); bs[(i + (e.key === "ArrowDown" ? 1 : bs.length - 1)) % bs.length].focus(); }
+    });
+    el.addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-act]"); if (!b) return;
+      const act = b.dataset.act; closeMenu();
+      try {
+        if (act === "redo") {
+          const text = await repeatText(x);
+          closeMobileSide(); input.value = text; autosize(); input.focus(); input.setSelectionRange(text.length, text.length);
+          $("composer").classList.add("flash"); setTimeout(() => $("composer").classList.remove("flash"), 900);
+        }
+        if (act === "html") download(`/api/runs/${runId}/report.html?download=true`);
+        if (act === "csv") download(`/api/runs/${runId}/trades.csv`);
+        if (act === "fav" && await humanAction(() => api(`/api/runs/${runId}/save`, { method: "POST", body: JSON.stringify({ session_id: sid() }) }))) { await loadSide(); refreshStars(); }
+        if (act === "unfav" && await humanAction(() => api(`/api/research/${favRec.id}/delete?session_id=${sid()}`, { method: "POST" }))) { await loadSide(); refreshStars(); }
+        if (act === "del" && await humanAction(() => api(`/api/runs/${runId}/delete?session_id=${sid()}`, { method: "POST" }))) { forgetRun(runId); loadSide(); }
+      } catch (err) { toast("Не удалось: " + err.message); }
+    });
+    el.querySelector("button").focus({ preventScroll: true });
+  }
+  window.addEventListener("resize", () => closeMenu());
+  $("sideList").addEventListener("scroll", () => closeMenu(), { passive: true });
+
   document.querySelectorAll(".side-btn[data-list]").forEach((b) => b.addEventListener("click", () => {
     // в узкой панели список не помещается: раскрываем её на время выбора и потом возвращаем как было
     if (root.classList.contains("rail") && !isMobile()) { setRail(false, false); state.railPeek = true; }
     state.list = b.dataset.list; renderSide();
   }));
-  $("sideList").addEventListener("click", async (e) => {
-    const delRun = e.target.closest("[data-delrun]"), delFav = e.target.closest("[data-del]");
-    if (delRun || delFav) {
-      e.stopPropagation();
-      try {
-        if (delRun) { const id = delRun.dataset.delrun;
-          if (await humanAction(() => api(`/api/runs/${id}/delete?session_id=${sid()}`, { method: "POST" }))) { forgetRun(id); loadSide(); } }
-        else if (await humanAction(() => api(`/api/research/${delFav.dataset.del}/delete?session_id=${sid()}`, { method: "POST" }))) { loadSide(); refreshStars(); }
-      } catch (err) { toast("Не удалось: " + err.message); }
-      return;
-    }
+  $("sideList").addEventListener("click", (e) => {
+    const mb = e.target.closest("[data-menu]");
+    if (mb) { e.stopPropagation(); if (menu && menu.btn === mb) closeMenu(); else openMenu(mb); return; }
     const it = e.target.closest(".side-item");
     if (it) { openFromHistory(it.dataset.run, it.dataset.sid); closeMobileSide(); if (state.railPeek) { state.railPeek = false; setRail(true, false); } }
   });
@@ -260,7 +375,13 @@
     history.replaceState(null, "", "/");
   }
   $("newBtn").addEventListener("click", newAnalysis);
-  $("brand").addEventListener("click", (e) => { e.preventDefault(); newAnalysis(); });
+  $("brand").addEventListener("click", (e) => {
+    e.preventDefault();
+    const lg = $("brand").querySelector(".logo");            // купол кивает: понятно, что начался новый анализ
+    lg.classList.remove("nod"); void lg.getBoundingClientRect(); lg.classList.add("nod");
+    lg.addEventListener("animationend", () => lg.classList.remove("nod"), { once: true });
+    newAnalysis();
+  });
 
   // клик по истории: открываем тот диалог, где анализ был сделан, чтобы ничего не смешивать
   async function openFromHistory(runId, sessionId) {
@@ -309,9 +430,16 @@
   }
   function agentShell(st = "idle") {
     const d = document.createElement("div"); d.className = "msg agent";
-    d.innerHTML = `<div class="a-head"><span class="av"></span><span class="nm">Signal</span></div><div class="a-body"></div>`;
+    d.innerHTML = `<div class="a-head"><span class="av"></span><span class="nm">Signal</span><span class="think" hidden></span></div><div class="a-body"></div>`;
     log.appendChild(d);
     const m = Signal.create(d.querySelector(".av"), { size: 26, state: st }); m.el.classList.add("sg-mini"); d._mascot = m;
+    if (st === "thinking") {
+      d.classList.add("thinking");
+      const th = d.querySelector(".think"), t0 = performance.now(); th.hidden = false;
+      const tick = () => { th.textContent = `думает ${fmt((performance.now() - t0) / 1000, 0)} с`; };
+      tick(); const iv = setInterval(tick, 1000);
+      d._stopThinking = () => { clearInterval(iv); d.classList.remove("thinking"); th.hidden = true; };
+    }
     return d;
   }
 
@@ -334,11 +462,13 @@
       box.querySelector("ol").innerHTML = list.map((s, i) => {
         const last = i === list.length - 1;
         const dt = s.end ? `<span class="dt">${fmt((s.end - s.start) / 1000, 1)} с</span>` : "";
-        return `<li class="${last && !s.end ? "now" : ""}"><span class="ic">${s.end ? '<svg><use href="#i-check"/></svg>' : '<span class="spin"></span>'}</span>${esc(s.label)}${dt}${last ? slowNote(s) : ""}</li>`;
-      }).join("") || `<li class="now"><span class="ic"><span class="spin"></span></span>Отправляю запрос</li>`;
+        const label = last && !s.end ? `<span class="shine">${esc(s.label)}</span>` : esc(s.label);
+        return `<li class="${last && !s.end ? "now" : "done"}"><span class="ic">${s.end ? '<svg><use href="#i-check"/></svg>' : '<span class="spin"></span>'}</span>${label}${dt}${last ? slowNote(s) : ""}</li>`;
+      }).join("") || `<li class="now"><span class="ic"><span class="spin"></span></span><span class="shine">Отправляю запрос</span></li>`;
     };
     draw();
-    const tick = setInterval(() => { const s = list[list.length - 1]; if (s && !s.end && LLM_STAGES.has(s.name)) draw(); }, 1000);
+    let lastNote = "";                                  // перерисовываем, только когда меняется подпись, иначе блик и анимации сбиваются
+    const tick = setInterval(() => { const s = list[list.length - 1]; if (!s) return; const n = slowNote(s); if (n !== lastNote) { lastNote = n; draw(); } }, 1000);
     return {
       stage(name) {
         const now = performance.now(); if (list.length) list[list.length - 1].end ??= now;
@@ -476,7 +606,8 @@
       reply = await streamChat(text, (stage) => { if (gen !== state.gen) return; const wb = atBottom(); steps.stage(stage); if (wb) toBottom(); });
     } catch (e) { failed = e; }
     if (gen !== state.gen) { setBusy(false); return; }            // пользователь ушёл в новый анализ: ответ уже в истории
-    d._mascot.setState("idle");
+    d._stopThinking?.();
+    d._mascot.setState(reply && !errorKind(reply) && reply.run_id ? "success" : "idle");
     const wasBottom = atBottom();
     if (reply) {
       state.sessionId = reply.session_id; localStorage.setItem("msa_session", reply.session_id);
@@ -637,7 +768,7 @@
           <div class="menu"><button class="act" type="button" data-export aria-label="Экспорт" title="Экспорт" aria-haspopup="true" aria-expanded="false"><svg><use href="#i-down"/></svg></button>
             <div class="menu-list" hidden><a href="/api/runs/${r.run_id}/report.html" target="_blank" rel="noopener">Отчёт HTML с графиками</a>
               <a href="/api/runs/${r.run_id}/trades.csv">Сделки, CSV</a>
-              <button type="button" data-tech>Технические детали</button></div></div>
+              <button type="button" data-tech>Подробности стратегии</button></div></div>
         </div>
       </header>
       ${v.warns.length ? `<div class="warns">${v.warns.map(([c, t]) => `<span class="warn ${c}">${t}</span>`).join("")}</div>` : ""}
@@ -654,7 +785,7 @@
       <button class="more-btn" type="button" aria-expanded="false" data-more>Подробная аналитика<svg><use href="#i-chev"/></svg></button>
       <div class="detail" hidden>
         <div class="tabs" role="tablist">
-          ${[["risk", "Риск и метрики"], ["price", "Цена и сделки"], ["trades", `Сделки (${r.trades.length})`], ["findings", "Выводы"], ["check", "Проверка и новости"]]
+          ${[["risk", "Риск и метрики"], ["price", "Цена и сделки"], ["trades", `Сделки (${r.trades.length})`], ["findings", "Выводы"], ["check", "Новости"]]
             .map(([k, l]) => `<button class="tab" type="button" role="tab" data-tab="${k}" aria-selected="false">${l}</button>`).join("")}
         </div>
         <div class="pane" data-pane="risk" role="tabpanel" hidden>${riskHtml(r)}</div>
@@ -754,12 +885,11 @@
     return `<div class="chart-h"><div class="subtabs" role="group" aria-label="Что показать">${views.map(([k, l], i) =>
         `<button type="button" data-pv="${k}" aria-pressed="${i === 0}">${esc(l)}</button>`).join("")}</div>
       <div class="toggles" data-price-tg>${hasOhlc ? `<button class="chip-t" type="button" data-tg="candles" aria-pressed="false">Свечи</button>` : ""}
-        ${overlays ? `<button class="chip-t" type="button" data-tg="overlays" aria-pressed="false">Линии из правил</button>` : ""}
+        ${overlays ? `<button class="chip-t" type="button" data-tg="overlays" aria-pressed="false" title="Средние, полосы и уровни из правил стратегии">Индикаторы</button>` : ""}
         ${periodHtml()}</div></div>
       <div class="plot" data-plot="px" role="img" aria-label="График цены с точками покупок и продаж"></div>
       <div class="empty" data-px-empty hidden></div>
-      <div class="legend2" data-px-legend><span><i class="dot" style="background:var(--ch-strategy)"></i>покупка</span><span><i class="dot" style="background:var(--neg)"></i>продажа</span>${(r.events || []).some((e) => e.news.length) ? `<span><i class="dot ring"></i>новости рядом</span>` : ""}
-        <span class="muted">Наведите на треугольник, чтобы увидеть сделку; клик выделит её в таблице.</span></div>`;
+      <div class="legend2" data-px-legend><span><i class="dot" style="background:var(--ch-strategy)"></i>покупка</span><span><i class="dot" style="background:var(--neg)"></i>продажа</span>${(r.events || []).some((e) => e.news.length) ? `<span><i class="dot ring"></i>новости рядом</span>` : ""}</div>`;
   }
   function wirePrice(el, r) {
     el.querySelectorAll("[data-pv]").forEach((b) => b.addEventListener("click", () => {
@@ -882,11 +1012,21 @@
       traces.push(...markers((t) => lo(t.entry_date) * 0.985, (t) => hi(t.exit_date) * 1.015));
       // дни резких движений с найденными новостями: кружок над ценой, в подсказке заголовки
       const evs = (r.events || []).filter((e) => byDate[e.date] && e.news.some((n) => !n.flagged_injection));
+      // подсказка: дата и движение, затем до двух заголовков, перенесённых по словам; клик открывает первую новость
+      const wrapLine = (s, w = 52) => { const out = []; let line = ""; for (const word of s.split(" ")) { if ((line + " " + word).trim().length > w && line) { out.push(line); line = word; } else line = (line + " " + word).trim(); } if (line) out.push(line); return out; };
+      const shown = (e) => e.news.filter((n) => !n.flagged_injection);
+      // Plotly не раскрывает &quot;, поэтому кавычки оставляем как есть и экранируем только разметку
+      const escPlot = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       if (evs.length) traces.push({ x: evs.map((e) => e.date), y: evs.map((e) => hi(e.date) * 1.04), mode: "markers", name: "Новости",
-        marker: { symbol: "circle", size: 8, color: "rgba(0,0,0,0)", line: { color: C.osc, width: 1.6 } },
-        text: evs.map((e) => `${dmy(e.date)}: цена ${pct(e.change_pct)}<br>` + e.news.filter((n) => !n.flagged_injection).slice(0, 3)
-          .map((n) => esc(n.title.length > 90 ? n.title.slice(0, 88) + "…" : n.title)).join("<br>")),
-        hovertemplate: "%{text}<extra>Новости рядом</extra>" });
+        marker: { symbol: "circle", size: 10, color: C.bg, line: { color: C.osc, width: 1.8 } },
+        customdata: evs.map((e) => ({ news: (shown(e).find((n) => /^https?:\/\//.test(n.url || "")) || {}).url || "" })),
+        text: evs.map((e) => {
+          const ns = shown(e), more = ns.length > 2 ? `<br><span style="color:${C.muted}">ещё ${ns.length - 2} в разделе «Новости»</span>` : "";
+          const titles = ns.slice(0, 2).map((n) => { const t = unent(n.title); return wrapLine(t.length > 140 ? t.slice(0, 138) + "…" : t).map(escPlot).join("<br>"); });
+          return `<b>${dmy(e.date)}</b>  <span style="color:${e.change_pct >= 0 ? C.mint : C.neg}">${pct(e.change_pct)}</span><br>${titles.join("<br><br>")}${more}`;
+        }),
+        hoverlabel: { align: "left", bgcolor: C.elev, bordercolor: C.line, font: { size: 12, color: C.text } },
+        hovertemplate: "%{text}<extra></extra>" });
       layout = { ...BASE, hovermode: "closest", xaxis: { ...XAX, rangeslider: { visible: false } },
         yaxis: { ...AX, side: "right", nticks: 5, ticksuffix: " ₽", ...fitY(el, r, "px") }, margin: { ...BASE.margin, l: 10, r: 60 } };
       // индикатор стратегии под ценой на общей шкале времени, с теми же точками сделок
@@ -912,7 +1052,14 @@
     Plotly.react(p, traces, layout, CFG);
     syncRange(el, p);
     if (!p._clickBound) { p._clickBound = true;
-      p.on("plotly_click", (ev) => { const n = ev.points?.[0]?.customdata; if (n) selectTrade(el, r, n, false); }); }
+      p.on("plotly_click", (ev) => {
+        const n = ev.points?.[0]?.customdata;
+        if (n && typeof n === "object") { if (n.news) window.open(n.news, "_blank", "noopener"); return; }   // кружок новости
+        if (n) selectTrade(el, r, n, false);
+      });
+      // над кружком с ссылкой курсор становится рукой, как у ссылки
+      p.on("plotly_hover", (ev) => { const n = ev.points?.[0]?.customdata; p.classList.toggle("pt-link", !!(n && typeof n === "object" && n.news)); });
+      p.on("plotly_unhover", () => p.classList.remove("pt-link")); }
   }
 
   // единая временная шкала: масштаб одного графика переносится на остальные, вертикаль подстраивается
@@ -1028,11 +1175,8 @@
 
   // ---------- проверка и новости ----------
   function checkHtml(r) {
-    const v = r.verification;
-    return `<div class="verif">${v.status === "OK" ? `<svg><use href="#i-check"/></svg><span>Два независимых расчёта совпали по всем ${v.checks.length} проверкам (${term("сверка", "verify")}).</span>`
-        : `<span class="neg">Два независимых расчёта не совпали: цифрам доверять нельзя.</span>`}</div>
-      <div class="news-list sec"><h5>Новости рядом с резкими движениями</h5>${newsHtml(r)}</div>
-`;
+    // расхождение движков уже показано предупреждением наверху отчёта, здесь только новости
+    return `<div class="news-list sec"><h5>Новости рядом с резкими движениями</h5>${newsHtml(r)}</div>`;
   }
   async function loadTrace(el) {
     const box = el.querySelector("[data-trace]"); if (!box || box._done) return; box._done = true;
@@ -1045,12 +1189,11 @@
 
   // =================== выдвижные панели ===================
   function openDrawer(id) { $("scrim").hidden = false; $(id).hidden = false; $(id).querySelector(".x").focus(); }
-  function closeDrawers() { ["details", "settings", "how"].forEach((id) => ($(id).hidden = true)); $("scrim").hidden = true; }
+  function closeDrawers() { ["details", "settings"].forEach((id) => ($(id).hidden = true)); $("scrim").hidden = true; }
   $("scrim").addEventListener("click", closeDrawers);
   document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", closeDrawers));
-  $("howBtn").addEventListener("click", () => { closeMobileSide(); openDrawer("how"); });
   const typing = (t) => t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT" || t.isContentEditable);
-  const drawerOpen = () => !$("details").hidden || !$("settings").hidden || !$("how").hidden;
+  const drawerOpen = () => !$("details").hidden || !$("settings").hidden;
   const openReport = () => [...log.querySelectorAll(".ap:not(.collapsed)")].pop();
   document.addEventListener("keydown", (e) => {
     if (!$("modal").hidden) return;
@@ -1090,31 +1233,64 @@
   document.addEventListener("click", (e) => { if (!e.target.closest(".menu")) document.querySelectorAll(".menu-list").forEach((m) => (m.hidden = true)); });
 
   function openDetails(r) {
-    $("detailsTitle").textContent = `${company(r.spec.ticker)}, под капотом`;
+    $("detailsTitle").textContent = `${company(r.spec.ticker)}: подробности стратегии`;
     $("detailsBody").innerHTML = `<div class="sec">${hoodHtml(r)}</div>`;
     openDrawer("details");
-    const box = $("traceBox");
-    if (box) {
-      if (!state.lastTrace) box.textContent = "в этой вкладке браузера запросов ещё не было";
-      else api(`/api/traces/${state.lastTrace}`).then((t) => {
-        box.innerHTML = `<p>${t.events.length} шагов, ${t.tokens} токенов, ${fmt(t.cost_rub, 4)} ₽, модель и инструменты ${t.latency_ms} мс.</p>
-          <table class="table">${t.events.map((e) => `<tr class="${e.kind === "error" ? "bad" : ""}"><td class="num">${e.seq}</td><td>${e.kind}</td><td>${esc(e.name)}</td><td class="num">${e.latency_ms} мс</td></tr>`).join("")}</table>`;
-      }).catch(() => (box.textContent = "трасса недоступна"));
-    }
   }
+  const cleanTitle = (t) => unent(t).replace(/\p{Extended_Pictographic}\uFE0F?/gu, "").replace(/\s+-\s+Smart-Lab$/, "").trim();
   function newsHtml(r) {
-    const st = r.news_status || "новости не искались";
-    let html = `<p class="muted">${esc(st.charAt(0).toUpperCase() + st.slice(1))}. Новость рядом по дате не означает, что цена изменилась из-за неё.</p>`;
-    if (!r.events.length) return html;
-    return html + `<div class="scroll"><table class="table"><tr><th>Дата</th><th class="num">Цена</th><th>Новости рядом</th></tr>${
-      r.events.map((e) => `<tr><td>${e.date}</td><td class="num ${tone(e.change_pct)}">${pct(e.change_pct)}</td><td>${
-        e.news.length ? e.news.map((n) => n.flagged_injection ? `<div><span class="tag">скрыто: попытка управлять агентом</span></div>`
-          : `<div>${/^https?:\/\//.test(n.url || "") ? `<a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a>` : esc(n.title)}
-             <span class="muted small">${esc(n.source)}</span></div>`).join("") : `<span class="muted">новостей не нашлось</span>`}</td></tr>`).join("")}</table></div>`;
+    const evs = (r.events || []).filter((e) => e.news.length);
+    if (!evs.length) return `<p class="muted">${(r.events || []).length ? "Резкие движения цены были, но новостей рядом с ними не нашлось." : "Резких движений цены за период не было, новости не понадобились."}</p>`;
+    return `<div class="scroll"><table class="table news-t"><tr><th>Дата</th><th class="num">Цена</th><th>Новости рядом</th></tr>${
+      evs.map((e) => `<tr><td class="nowrap">${dmy(e.date)}</td><td class="num ${tone(e.change_pct)}">${pct(e.change_pct)}</td><td>${
+        e.news.map((n) => n.flagged_injection ? `<div><span class="tag">скрыто: попытка управлять агентом</span></div>`
+          : `<div>${/^https?:\/\//.test(n.url || "") ? `<a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(cleanTitle(n.title))}</a>` : esc(cleanTitle(n.title))}
+             <span class="muted small">${esc(n.source)}</span></div>`).join("")}</td></tr>`).join("")}</table></div>
+      <p class="muted small news-note">Новость рядом по дате не означает, что цена изменилась из-за неё.</p>`;
+  }
+  // ---------- подробности стратегии: только то, что нужно трейдеру, и каждая цифра с выводом ----------
+  const p1 = (v) => pct(v, true, 1);
+  function regimesText(rg) {
+    if (!rg || !rg.length) return "";
+    const list = rg.map((x) => `в ${x.regime === "рост" ? "росте" : x.regime === "падение" ? "падении" : "боковике"} <b class="${tone(x.strategy_pct)}">${p1(x.strategy_pct)}</b>`).join(", ");
+    const win = rg.filter((x) => x.strategy_pct > 0.5).map((x) => x.regime), lose = rg.filter((x) => x.strategy_pct < -0.5).map((x) => x.regime);
+    const name = { "рост": "растущем", "боковик": "боковом", "падение": "падающем" };
+    const out = !win.length ? "стратегия теряла при любом рынке"
+      : !lose.length ? "стратегия зарабатывала при любом рынке"
+      : win.length === 1 ? `стратегия зарабатывает только на ${name[win[0]]} рынке`
+      : `стратегия зарабатывает на ${win.map((w) => name[w]).join(" и ")} рынке, а на ${lose.map((w) => name[w]).join(" и ")} теряет`;
+    return `<p class="hood-p">${list[0].toUpperCase() + list.slice(1)}: ${out}.</p>
+      <p class="hood-note">Режим определяется по изменению цены за 60 торговых дней, дни считаются внутри периода проверки.</p>`;
+  }
+  function sensText(sn, cur) {
+    const others = (sn || []).filter((x) => !x.is_current).map((x) => x.return_pct);
+    if (others.length < 2) return "";
+    const lo = Math.min(...others), hi = Math.max(...others), med = others.slice().sort((a, b) => a - b)[Math.floor(others.length / 2)];
+    const sameSign = others.every((x) => Math.sign(x) === Math.sign(cur) || Math.abs(x) < 0.5);
+    const out = !sameSign ? "результат сильно зависит от точных чисел: соседние настройки дают и прибыль, и убыток"
+      : cur - med > Math.max(10, Math.abs(med)) ? "текущие числа заметно лучше соседних, похоже на подгонку под историю"
+      : "результат держится не на удачно подобранных числах";
+    return `<p class="hood-p">Если сдвинуть настройки на четверть в обе стороны, доходность будет от <b class="${tone(lo)}">${p1(lo)}</b> до <b class="${tone(hi)}">${p1(hi)}</b>,
+      у текущих <b class="${tone(cur)}">${p1(cur)}</b>: ${out}.</p>`;
+  }
+  function metricsRows(m, cash) {
+    const sh = m.sharpe, pf = m.profit_factor;
+    const shTxt = sh == null ? "" : sh < -0.05 ? "стратегия теряла деньги, риск не окупился" : sh < 0.05 ? "доходности почти нет, колебания ничем не окупились" : sh < 1 ? "доходность слабая для таких колебаний" : sh < 2 ? "хорошее соотношение доходности и риска" : "очень высоко, на истории это часто признак подгонки";
+    const pfTxt = pf == null ? "" : `на 1 ₽ убытка приходится ${fmt(pf, 2)} ₽ прибыли${pf >= 1 ? "" : ", сделки в сумме убыточны"}`;
+    const rows = [
+      [term("CAGR", "cagr"), pct(m.cagr_pct), m.cagr_pct == null ? "" : `капитал ${m.cagr_pct >= 0 ? "рос" : "сокращался"} в среднем на ${fmt(Math.abs(m.cagr_pct), 1)}% в год`],
+      [term("Коэффициент Шарпа", "sharpe"), fmt(sh), shTxt],
+      ["Волатильность, годовая", pct(m.volatility_pct, false), m.volatility_pct == null ? "" : `обычный разброс капитала за год около ±${fmt(m.volatility_pct, 0)}%`],
+      ["Profit factor", fmt(pf), pfTxt],
+      ["Время в позиции", pct(m.exposure_pct, false), m.exposure_pct == null ? "" : `в остальные ${fmt(100 - m.exposure_pct, 0)}% дней деньги лежали без дела`],
+      ["Комиссии", rub(m.commissions_paid), `это ${fmt(m.commissions_paid / cash * 100, 1)}% начального капитала`],
+    ];
+    return rows.map(([k, v, why]) => `<tr><td class="muted">${k}</td><td class="num hood-v">${v}</td><td class="hood-why">${why}</td></tr>`).join("");
   }
   function hoodHtml(r) {
-    const m = r.metrics, s = r.spec, d = r.diagnostics, v = r.verification;
+    const m = r.metrics, s = r.spec, d = r.diagnostics || {}, u = r.understood || {};
     const row = (a, b2) => `<tr><td class="muted">${a}</td><td>${b2}</td></tr>`;
+    const rules = u.entry ? `<p class="hood-p">${withTerms(esc(u.entry))}</p>${u.exit ? `<p class="hood-p">${withTerms(esc(u.exit))}</p>` : ""}` : "";
     return `<h5>Стратегия и условия</h5><table class="table">
         ${row("Правило", strategyText(s, true))}${row("Бумага", `${esc(company(s.ticker))} (${s.ticker}), режим ${s.board}`)}
         ${row("Период", `с ${s.start_date} по ${s.end_date}, ${r.data.rows} торговых дней`)}${row("Капитал", rub(s.initial_cash))}
@@ -1122,28 +1298,16 @@
         ${row("Исполнение", "решение по закрытию дня, сделка по открытию следующего, только покупка")}
         ${row("Дивиденды", "не учитываются ни в стратегии, ни в держании")}
         ${row("Данные", `${r.data.source}${r.data.is_synthetic ? ", " + term("синтетика", "synth") : ""}`)}</table>
-      ${s.rules ? `<h5>Строгая спецификация</h5><pre class="spec">${esc(JSON.stringify(s.rules, null, 2))}</pre>` : ""}
-      ${(r.assumptions || []).length ? `<h5>Допущения</h5><ul>${r.assumptions.map((a) => `<li>${esc(a)}</li>`).join("")}</ul>` : ""}
-      ${(r.data.warnings || []).length ? `<h5>Качество данных</h5><ul>${r.data.warnings.map((a) => `<li>${esc(a)}</li>`).join("")}</ul>` : ""}
-      <h5>Профессиональные метрики</h5><table class="table">
-        ${row(term("CAGR", "cagr"), pct(m.cagr_pct))}${row(term("Коэффициент Шарпа", "sharpe"), fmt(m.sharpe))}
-        ${row("Волатильность, годовая", pct(m.volatility_pct, false))}${row("Profit factor", fmt(m.profit_factor))}
-        ${row("Время в позиции", pct(m.exposure_pct, false))}${row("Комиссии", rub(m.commissions_paid))}</table>
-      ${d.regimes ? `<h5>По режимам рынка: тренд цены за 60 дней</h5><table class="table">${d.regimes.map((x) =>
-        `<tr><td>${x.regime}</td><td class="num">${x.days} дн.</td><td class="num ${negc(x.strategy_pct)}">${pct(x.strategy_pct)}</td></tr>`).join("")}</table>` : ""}
-      ${(d.sensitivity || []).length ? `<h5>Соседние параметры</h5><table class="table">${d.sensitivity.map((x) =>
-        `<tr><td>${esc(Object.entries(x.params).map(([k, val]) => `${k}: ${fmt(val, Number.isInteger(val) ? 0 : 1)}`).join(", "))}${x.is_current ? " <span class='muted small'>текущие</span>" : ""}</td>
-        <td class="num ${negc(x.return_pct)}">${pct(x.return_pct)}</td></tr>`).join("")}</table>` : ""}
-      <h5>${term("Сверка", "verify")} двух движков: ${v.status === "OK" ? "совпали" : "<span class='neg'>не совпали</span>"}</h5>
-      <table class="table"><tr><th>Проверка</th><th class="num">Основной</th><th class="num">Контрольный</th></tr>${v.checks.map((c) =>
-        `<tr class="${c.ok ? "" : "bad"}"><td>${esc(c.name)}</td><td class="num">${esc(c.main)}</td><td class="num">${esc(c.reference)}</td></tr>`).join("")}</table>
-      <h5>Трасса последнего запроса</h5><div id="traceBox" class="muted small">загружаю…</div>
-      <div class="links"><a href="/api/runs/${r.run_id}/report.html" target="_blank" rel="noopener">Отчёт HTML</a>
-        <a href="/api/runs/${r.run_id}/trades.csv">Сделки CSV</a></div>`;
+      ${rules || s.rules ? `<h5>Строгая спецификация</h5>${rules}
+        ${s.rules ? `<details class="hood-json"><summary>Показать как JSON</summary><pre class="spec">${esc(JSON.stringify(s.rules, null, 2))}</pre></details>` : ""}` : ""}
+      <h5>Профессиональные метрики</h5><table class="table hood-m">${metricsRows(m, s.initial_cash)}</table>
+      ${d.regimes && d.regimes.length ? `<h5>Где стратегия зарабатывает</h5>${regimesText(d.regimes)}` : ""}
+      ${(d.sensitivity || []).length > 2 ? `<h5>Устойчивость к настройкам</h5>${sensText(d.sensitivity, m.total_return_pct)}` : ""}`;
   }
 
   // =================== настройки: окно с разделами ===================
-  const SECTIONS = [["general", "Общие"], ["look", "Внешний вид"], ["answers", "Ответы"], ["model", "Модель и лимиты"], ["data", "Данные"], ["keys", "Сочетания клавиш"]];
+  const SECTIONS = [["general", "Общие", "gear"], ["look", "Внешний вид", "sun"], ["answers", "Ответы", "chat"], ["model", "Аккаунт и модель", "user"],
+    ["data", "Данные", "db"], ["keys", "Сочетания клавиш", "kbd"], ["how", "Как это работает", "help"]];
   const row = (a, b) => `<div class="set-row"><span>${a}</span><span>${b}</span></div>`;
   const sw = (id, on, label, note = "") => `<div class="set-row"><span class="set-l">${label}${note ? `<small>${note}</small>` : ""}</span>
     <button class="switch" type="button" role="switch" id="${id}" aria-checked="${on}" aria-label="${label}"></button></div>`;
@@ -1151,13 +1315,29 @@
     `<button type="button" data-${name}="${k}" aria-pressed="${k === cur}">${t}</button>`).join("")}</div>`;
   const num = (v) => Number(v || 0).toLocaleString("ru-RU").replace(/\s/g, " ");
   const flip = (e) => { const on = e.currentTarget.getAttribute("aria-checked") !== "true"; e.currentTarget.setAttribute("aria-checked", String(on)); return on; };
-  const usageLine = (u) => `${num(u.tokens)} токенов, ${fmt(u.cost_rub, 2)} ₽`;
+  const usageLine = (u) => `${num(u.tokens)} токенов`;
   let llmCheck = null;                                   // результат последней проверки связи, живёт до перезагрузки страницы
   async function checkLlm() { llmCheck = { ...(await api("/api/llm/check", { method: "POST" })), at: Date.now() }; return llmCheck; }
   const checkText = (k) => !k ? "" : k.ok ? `<span class="ok">Работает</span>, ответ за ${fmt(k.latency_ms / 1000, 1)} с`
     : `<span class="neg">Нет связи.</span> ${esc(k.text || "")}`;
-  const balanceText = (k) => k && k.ok && k.balance_tokens != null ? `${num(k.balance_tokens)} токенов`
-    : `<a href="https://developers.sber.ru/studio" target="_blank" rel="noopener">В личном кабинете</a>`;
+
+  let acct = null;                                       // последний ответ /api/account
+  const loadAcct = async (fresh) => { try { acct = await api("/api/account" + (fresh ? "?fresh=true" : "")); } catch (_) { acct = { ok: false, error: "network" }; } return acct; };
+  const tok = (n) => n >= 1e6 ? `${fmt(n / 1e6, 1).replace(/,0$/, "")} млн` : n >= 1e3 ? `${Math.round(n / 1e3)} тыс.` : String(n);
+  const ACCT_ERR = { no_key: "Ключа GigaChat нет в .env", auth: "Ключ не подошёл", network: "Нет связи с GigaChat", cert: "Не прошла проверка сертификата" };
+  function barsHtml(a) {
+    if (!a) return `<div class="qbs wait">${["Lite", "Pro", "Max"].map((g) => `<div class="qb"><div class="qb-h"><span>${g}</span><span>…</span></div><div class="qb-t"><i></i></div></div>`).join("")}</div>`;
+    if (!a.ok) return `<p class="qb-note">${ACCT_ERR[a.error] || "GigaChat не ответил"}, остаток узнать не получилось.</p>`;
+    if (!a.balance) return `<p class="qb-note">${a.scope === "GIGACHAT_API_CORP" ? "При оплате по факту GigaChat остаток не сообщает." : "GigaChat не сообщил остаток."} Расход виден в личном кабинете.</p>`;
+    return `<div class="qbs">${a.balance.map((b) => {
+      const over = !b.quota || b.tokens > b.quota, pct = over ? 100 : Math.max(1.5, b.tokens / b.quota * 100);
+      const right = over ? `${tok(b.tokens)}` : `${tok(b.tokens)} из ${tok(b.quota)}`;
+      return `<div class="qb${b.current ? " cur" : ""}${!over && pct < 10 ? " low" : ""}"><div class="qb-h"><span>${b.group}${b.current ? "<em>сейчас</em>" : ""}</span><span>${right}</span></div>
+        <div class="qb-t" role="meter" aria-label="Остаток ${b.group}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}"><i style="--w:${pct}%"></i></div></div>`;
+    }).join("")}${a.balance.some((b) => b.quota) ? `<p class="qb-note">Шкала: годовая квота Freemium для физлиц.</p>` : ""}</div>`;
+  }
+  // полосы заполняются после вставки, чтобы было видно движение
+  const growBars = (root_) => requestAnimationFrame(() => requestAnimationFrame(() => root_.querySelectorAll(".qbs").forEach((q) => q.classList.add("go"))));
 
   const RENDER = {
     general: () => `${sw("swSignal", prefs.signal, "Помощник Signal", "Персонаж на стартовом экране и рядом с ответами")}
@@ -1189,25 +1369,50 @@
           value="${num(prefs.cash || (c && c.default_cash) || 100000)}"> ₽</span></div>`,
     model: (c, u) => {
       if (!c) return `<p class="muted">Сведения о модели недоступны: сервер не ответил.</p>`;
-      const l = c.limits || {};
-      return `${row("Модель", esc(c.model || c.provider))}
+      const l = c.limits || {}, a = acct;
+      const picks = a && a.choices && a.choices.length ? a.choices : null;
+      return `${a && a.studio_url ? row("Личный кабинет", `<a href="${esc(a.studio_url)}" target="_blank" rel="noopener">Sber Studio ↗</a>`) : ""}
+        ${a && a.scope_label ? row("Тип доступа", esc(a.scope_label)) : ""}
         ${row("Ключ API", c.llm_ready ? '<span class="ok">Найден</span>' : '<span class="neg">Не найден в .env</span>')}
+        ${row(`<span class="set-l">Модель<small>Меняется под полем ввода, рядом с кнопкой отправки</small></span>`,
+            esc((picks && (picks.find((m) => m.current) || {}).title) || (a && a.model) || c.model || c.provider))}
+        <div class="set-h">Остаток бесплатных токенов</div>
+        <div id="acctBars">${barsHtml(a)}</div>
         <div class="set-row"><span class="set-l">Связь<small id="checkOut">${checkText(llmCheck) || "Проверка не тратит токены"}</small></span>
           <button class="btn-ghost btn-sm" type="button" id="checkBtn">Проверить</button></div>
-        ${row("Остаток у GigaChat", `<span id="balOut">${llmCheck ? balanceText(llmCheck) : "Появится после проверки связи"}</span>`)}
-        <div class="set-h">Расход</div>
+        <div class="set-h">Расход в этом сервисе</div>
         ${u ? row("Сегодня", usageLine(u.today)) + row("За всё время", usageLine(u.total)) : row("Расход", "нет данных")}
-        ${row("Лимит на один запрос", `до ${l.max_steps} шагов, ${l.max_llm_calls} обращений к модели, ${fmt(l.max_cost_rub_per_request, 0)} ₽`)}
         <details class="set-tech"><summary>Подробнее</summary>
+          ${row("Лимит на один запрос", `до ${l.max_steps} шагов и ${l.max_llm_calls} обращений к модели`)}
           ${row("Провайдер", esc(c.provider))}
           ${row("Запасные провайдеры", esc((c.fallback || []).slice(1).join(", ") || "нет"))}
           ${row("Котировки", c.data_mode === "demo" ? "Демонстрационные (флаг --demo)" : "MOEX ISS с кешем")}
           ${row("Вызовов инструментов на запрос", l.max_tool_calls)}
-          <p class="muted small" style="margin-top:12px">Меняется в configs/providers.yaml и configs/settings.yaml, ключи лежат в .env и здесь не показываются.</p>
+          <p class="muted small" style="margin-top:12px">Ключи лежат в .env и здесь не показываются. Ссылку на свой кабинет можно задать в .env строкой GIGACHAT_STUDIO_URL.</p>
         </details>`;
     },
     data: () => `<div class="set-row"><span class="set-l">История запусков<small>Избранное останется. Действие нельзя отменить</small></span>
         <button class="btn-ghost btn-sm" type="button" id="clearBtn">Очистить историю</button></div>`,
+    how: () => `<p class="how-lead">Вы описываете стратегию обычными словами, агент переводит её в строгие правила,
+        проверяет на истории Мосбиржи и объясняет результат. Модель отвечает за понимание и объяснение, считает только код, решения принимает человек.</p>
+      <ol class="how-steps">
+        <li><b>Слова в правила.</b> GigaChat собирает из описания условия на цене, объёме, средних, RSI, MACD, полосах Боллинджера,
+          стохастике и ATR вместе со стопами и выходом по времени, а код проверяет каждое правило ещё до расчёта.</li>
+        <li><b>Вопрос вместо догадки.</b> Если описание можно прочитать по-разному, агент переспрашивает с готовыми вариантами ответа
+          и показывает итоговую трактовку в блоке «Как я понял стратегию».</li>
+        <li><b>Два расчёта.</b> Бэктест независимо считают backtesting.py и собственный движок по одним условиям: сигнал по закрытию дня,
+          сделка по открытию следующего, с комиссией и проскальзыванием. Если результаты разошлись, агент об этом скажет.</li>
+        <li><b>Сравнение с держанием.</b> Результат сравнивается с покупкой акции в первый день периода, а диагностика показывает,
+          где стратегия теряла деньги и не подогнана ли она под историю.</li>
+        <li><b>Новости рядом, а не причина.</b> Резкие движения цены сопоставляются с новостями по датам, а новости с попыткой
+          управлять агентом отсекаются раньше, чем их увидит модель.</li>
+        <li><b>Решает человек.</b> Сохранение и удаление выполняются только после вашего «Да», а инструмента для реальных сделок в системе нет.</li>
+      </ol>
+      <div class="set-h">Чего агент не умеет</div>
+      <p class="how-not">Не работает с иностранными акциями и криптовалютой, потому что котировки берутся только по российским акциям
+        из основного режима Мосбиржи, и не считает короткие позиции, докупку, внутридневные свечи и прогноз цены нейросетью.</p>
+      <p class="muted small">Каждый шаг агента с токенами и временем записывается в трассу, её отдаёт API.
+        Документация API: <a href="/docs" target="_blank" rel="noopener">/docs</a>.</p>`,
     keys: () => `<dl class="keys"><dt><kbd class="mod">⌘</kbd><kbd>K</kbd></dt><dd>Новый анализ</dd>
       <dt><kbd>/</kbd></dt><dd>К полю ввода</dd>
       <dt><kbd>Esc</kbd></dt><dd>Закрыть окно, меню или свернуть отчёт</dd>
@@ -1271,9 +1476,12 @@
       });
       ci.addEventListener("input", () => { cn.textContent = cnText; cn.classList.remove("bad"); });
     }
+    if (id === "model") {
+      growBars(body);
+    }
     if (id === "model" && $("checkBtn")) $("checkBtn").addEventListener("click", async (e) => {
       const b = e.currentTarget; b.disabled = true; $("checkOut").textContent = "Проверяю…";
-      try { const k = await checkLlm(); $("checkOut").innerHTML = checkText(k); $("balOut").innerHTML = balanceText(k); }
+      try { const k = await checkLlm(); $("checkOut").innerHTML = checkText(k); await loadAcct(true); const bx = $("acctBars"); if (bx) { bx.innerHTML = barsHtml(acct); growBars(bx); } }
       catch (err) { $("checkOut").textContent = "Проверка не удалась: " + err.message; }
       b.disabled = false;
     });
@@ -1286,7 +1494,7 @@
 
   async function openSettings(section = "general") {
     closeMobileSide(); closeUsage(); openDrawer("settings");
-    $("setNav").innerHTML = SECTIONS.map(([k, t]) => `<button type="button" role="tab" data-sec="${k}" aria-selected="${k === section}">${t}</button>`).join("");
+    $("setNav").innerHTML = SECTIONS.map(([k, t, ic]) => `<button type="button" role="tab" data-sec="${k}" aria-selected="${k === section}"><svg aria-hidden="true"><use href="#i-${ic}"/></svg>${t}</button>`).join("");
     let c = null, u = null;
     const show = (id) => {
       $("setNav").querySelectorAll("[data-sec]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.sec === id)));
@@ -1295,31 +1503,172 @@
     };
     $("setNav").onclick = (e) => { const b = e.target.closest("[data-sec]"); if (b) show(b.dataset.sec); };
     show(section);
+    const accP = loadAcct();
     try { [c, u] = await Promise.all([api("/api/config"), api("/api/usage")]); } catch (_) {}
-    const cur = $("setNav").querySelector('[aria-selected="true"]');
-    if (!$("settings").hidden && cur && ["answers", "model"].includes(cur.dataset.sec)) show(cur.dataset.sec);
+    const cur = () => $("setNav").querySelector('[aria-selected="true"]');
+    if (!$("settings").hidden && cur() && ["answers", "model"].includes(cur().dataset.sec)) show(cur().dataset.sec);
+    await accP;
+    if (!$("settings").hidden && cur() && cur().dataset.sec === "model") show("model");
   }
   $("settingsBtn").addEventListener("click", () => openSettings());
 
   // =================== расход: окошко у боковой панели ===================
-  function closeUsage() { $("usagePop").hidden = true; $("usageBtn").setAttribute("aria-expanded", "false"); }
+  // Окно расхода: один плавный вход, данные из прошлого открытия показываются сразу, свежие подменяют их мягко.
+  let usageLast = null, usageClose = null;
+  const EASE = (k) => 1 - Math.pow(1 - k, 4);                 // долгое мягкое торможение в конце
+  const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // ---------- выбор модели под полем ввода ----------
+  function modelLabel() {
+    const cur = acct && acct.choices && acct.choices.find((m) => m.current);
+    $("modelName").textContent = cur ? cur.title.replace("GigaChat ", "") : "GigaChat";
+    $("modelBtn").title = cur ? `Модель: ${cur.title}` : "Модель GigaChat";
+  }
+  // Ползунок мощности: Lite слева, самая сильная модель справа. Внутри полосы летят частицы, чем сильнее модель, тем быстрее.
+  const MS_SPEED = { Lite: 16, Pro: 44, Max: 96, Ultra: 96 }, MS_COUNT = { Lite: 7, Pro: 12, Max: 20, Ultra: 20 };
+  let msAnim = null;
+  function stopParticles() { if (msAnim) { cancelAnimationFrame(msAnim.raf); msAnim = null; } }
+  function startParticles(canvas, getGroup) {
+    stopParticles();
+    const dpr = window.devicePixelRatio || 1, W = canvas.clientWidth, H = canvas.clientHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    const ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr);
+    const dots = Array.from({ length: 20 }, (_, i) => ({ x: Math.random() * W, y: 4 + Math.random() * (H - 8), r: .7 + Math.random() * 1.3,
+      k: .55 + Math.random() * .9, ph: Math.random() * 6.28, i }));
+    let last = performance.now(), speed = MS_SPEED[getGroup()] || 30;
+    const frame = (now) => {
+      const dt = Math.min(.05, (now - last) / 1000); last = now;
+      const g = getGroup(), target = MS_SPEED[g] || 30, n = MS_COUNT[g] || 10;
+      speed += (target - speed) * Math.min(1, dt * 3);                 // скорость меняется плавно, без рывка
+      ctx.clearRect(0, 0, W, H);
+      for (const d of dots) {
+        d.x += speed * d.k * dt; if (d.x > W + 4) { d.x = -4; d.y = 4 + Math.random() * (H - 8); }
+        const tw = .55 + .45 * Math.sin(now / 420 + d.ph);
+        ctx.globalAlpha = (d.i < n ? 1 : 0) * tw * .9;
+        ctx.beginPath(); ctx.arc(d.x, d.y + Math.sin(now / 900 + d.ph) * 1.2, d.r, 0, 6.283); ctx.fillStyle = "#fff"; ctx.fill();
+        if (speed > 60 && d.i < n) {                                   // на высокой скорости у частиц появляется след
+          ctx.globalAlpha *= .35; ctx.fillRect(d.x - speed * d.k * .06, d.y - d.r * .5 + Math.sin(now / 900 + d.ph) * 1.2, speed * d.k * .06, d.r);
+        }
+      }
+      ctx.globalAlpha = 1;
+      if (reduced()) return;                                           // один кадр без движения
+      msAnim.raf = requestAnimationFrame(frame);
+    };
+    msAnim = { raf: requestAnimationFrame(frame) };
+  }
+  function closeModelMenu(focusBack) {
+    const m = $("modelMenu"); if (m.hidden) return;
+    stopParticles();
+    m.hidden = true; $("modelBtn").setAttribute("aria-expanded", "false"); if (focusBack) $("modelBtn").focus();
+  }
+  function drawModelMenu() {
+    const m = $("modelMenu"), picks = (acct && acct.choices) || [];
+    stopParticles();
+    if (!picks.length) { m.innerHTML = `<div class="mm-h">Модель GigaChat</div><p class="mm-empty">Модели загружаются…</p>`; return; }
+    const left = (g) => { const b = acct && acct.balance && acct.balance.find((x) => x.group === g); return b ? `осталось ${tok(b.tokens)} токенов` : ""; };
+    let idx = Math.max(0, picks.findIndex((x) => x.current));
+    m.innerHTML = `<div class="mm-h">Модель GigaChat</div>
+      <div class="ms">
+        <input type="range" id="msRange" min="0" max="${picks.length - 1}" step="1" value="${idx}" aria-label="Мощность модели">
+        <div class="ms-track"><div class="ms-fill"><canvas></canvas></div><i class="ms-thumb"></i></div>
+        <div class="ms-stops">${picks.map((x, i) => `<button type="button" data-stop="${i}" tabindex="-1">${esc(x.group)}</button>`).join("")}</div>
+      </div>
+      <div class="ms-info"><div class="ms-top"><b id="msTitle"></b><span id="msLeft"></span></div><p id="msAbout"></p></div>
+      <div class="mm-f">У каждой модели свой запас бесплатных токенов. Выбор действует для всех запросов.</div>`;
+    const range = $("msRange"), box = m.querySelector(".ms");
+    const show = (i) => {
+      const x = picks[i];
+      box.style.setProperty("--p", picks.length > 1 ? i / (picks.length - 1) : 1);
+      box.dataset.g = x.group; range.setAttribute("aria-valuetext", x.title);
+      $("msTitle").textContent = x.title; $("msLeft").textContent = left(x.group); $("msAbout").textContent = x.about;
+      m.querySelectorAll("[data-stop]").forEach((s, k) => s.classList.toggle("on", k === i));
+    };
+    const commit = async (i) => {
+      if (picks[i].current) return;
+      const x = picks[i];
+      try {
+        acct = await api("/api/account/model", { method: "POST", body: JSON.stringify({ model: x.id }) });
+        picks.forEach((q, k) => (q.current = k === i)); modelLabel(); toast(`${x.title} отвечает на все запросы`);
+        $("msLeft").textContent = left(x.group);
+      } catch (err) { toast("Не удалось сменить модель: " + err.message); idx = Math.max(0, picks.findIndex((q) => q.current)); range.value = idx; show(idx); }
+    };
+    range.addEventListener("input", () => { idx = +range.value; show(idx); });
+    range.addEventListener("change", () => commit(+range.value));
+    m.querySelectorAll("[data-stop]").forEach((s) => s.addEventListener("click", () => { idx = +s.dataset.stop; range.value = idx; show(idx); commit(idx); range.focus(); }));
+    show(idx);
+    requestAnimationFrame(() => { const c = m.querySelector("canvas"); if (c && !m.hidden) startParticles(c, () => box.dataset.g); });
+  }
+  $("modelBtn").addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const m = $("modelMenu");
+    if (!m.hidden) { closeModelMenu(); return; }
+    closeUsage(); m.hidden = false; drawModelMenu(); $("modelBtn").setAttribute("aria-expanded", "true");
+    $("msRange")?.focus({ preventScroll: true });
+    if (!acct || !acct.choices || !acct.choices.length) { await loadAcct(); modelLabel(); if (!m.hidden) { drawModelMenu(); $("msRange")?.focus({ preventScroll: true }); } }
+  });
+  $("modelMenu").addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeModelMenu(true); } });
+  document.addEventListener("pointerdown", (e) => { if (!$("modelMenu").hidden && !e.target.closest("#modelMenu, #modelBtn")) closeModelMenu(); });
+  loadAcct().then(modelLabel);
+
+  function closeUsage() {
+    const pop = $("usagePop"); if (pop.hidden || usageClose) return;
+    $("usageBtn").setAttribute("aria-expanded", "false");
+    pop.classList.add("leaving");
+    usageClose = setTimeout(() => { pop.hidden = true; pop.classList.remove("leaving", "go", "ready"); usageClose = null; }, reduced() ? 0 : 200);
+  }
+  function countUp(n, to, from = 0) {
+    const t0 = performance.now(), dur = reduced() ? 1 : 1300;
+    const step = (t) => { const k = Math.min(1, (t - t0) / dur); n.textContent = tok(Math.round(from + (to - from) * EASE(k))); if (k < 1 && n.isConnected) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }
+  function usageHtml(a, u) {
+    const cur = a && a.balance && a.balance.find((x) => x.current), rest = a && a.balance ? a.balance.filter((x) => !x.current) : [];
+    const title = (a && a.choices && (a.choices.find((x) => x.current) || {}).title) || (a && a.model) || "GigaChat";
+    const pct = (b) => !b.quota || b.tokens > b.quota ? 100 : Math.max(2, b.tokens / b.quota * 100);
+    const hero = cur ? `<div class="uw-hero"><b class="uw-num" data-to="${cur.tokens}">${tok(0)}</b><span>токенов осталось${cur.quota && cur.tokens <= cur.quota ? ` из ${tok(cur.quota)}` : ""}</span></div>
+        <div class="uw-bar${pct(cur) < 10 ? " low" : ""}"><i style="--w:${pct(cur)}%"></i></div>`
+      : a ? `<p class="qb-note">${barsHtml(a).replace(/<[^>]+>/g, "") || "Остаток недоступен"}</p>`
+      : `<div class="uw-hero wait"><b class="uw-num">…</b><span>узнаю остаток</span></div><div class="uw-bar wait"><i></i></div>`;
+    return `<div class="uw-head"><span><i class="uw-live"></i>${esc(title)}</span>${a && a.studio_url ? `<a href="${esc(a.studio_url)}" target="_blank" rel="noopener">Кабинет ↗</a>` : ""}</div>
+      ${hero}
+      ${!a ? `<div class="uw-grid">${'<div class="uw-cell wait"><span>&nbsp;</span><b>&nbsp;</b><div class="uw-mini"></div></div>'.repeat(3)}</div>` : ""}
+      ${rest.length ? `<div class="uw-grid">${rest.map((b) => `<div class="uw-cell"><span>${b.group}</span><b>${tok(b.tokens)}</b><div class="uw-mini"><i style="--w:${pct(b)}%"></i></div></div>`).join("")}</div>` : ""}
+      <div class="uw-stats"><div><span>Сегодня</span><b>${u ? tok(u.today.tokens) : "…"}</b></div><div><span>Всего в сервисе</span><b>${u ? tok(u.total.tokens) : "…"}</b></div></div>
+      <button type="button" class="up-more" id="upMore">Аккаунт и модель<svg><use href="#i-chev"/></svg></button>`;
+  }
+  function paintUsage(pop, a, u, mode) {
+    // mode: "enter" при открытии, "swap" когда пришли первые данные, "quiet" когда изменились уже показанные цифры
+    const prev = pop.querySelector(".uw-num[data-to]"), from = prev ? +prev.dataset.to : 0;
+    pop.innerHTML = usageHtml(a, u);
+    $("upMore").addEventListener("click", () => openSettings("model"));
+    pop.classList.toggle("swap", mode === "swap");
+    if (mode !== "quiet") { pop.classList.remove("go"); requestAnimationFrame(() => requestAnimationFrame(() => pop.classList.add("go"))); }
+    const n = pop.querySelector(".uw-num[data-to]");
+    if (n) { if (mode === "quiet") countUp(n, +n.dataset.to, from); else countUp(n, +n.dataset.to); }
+    pop.dataset.has = a && a.balance ? "1" : "";
+  }
   $("usageBtn").addEventListener("click", async (e) => {
     e.stopPropagation();
     const pop = $("usagePop");
-    if (!pop.hidden) { closeUsage(); return; }
+    if (!pop.hidden && !usageClose) { closeUsage(); return; }
+    clearTimeout(usageClose); usageClose = null; pop.classList.remove("leaving");
     if (!isMobile()) pop.style.bottom = (window.innerHeight - e.currentTarget.getBoundingClientRect().top + 6) + "px";
-    pop.innerHTML = `<p class="muted small">Загружаю…</p>`; pop.hidden = false; $("usageBtn").setAttribute("aria-expanded", "true");
-    let u; try { u = await api("/api/usage"); } catch (_) { pop.innerHTML = `<p class="muted small">Расход недоступен</p>`; return; }
-    const draw = () => { pop.innerHTML = `<div class="up-src">Модель: ${esc(u.model || u.provider)}</div>
-      <div class="up-row"><span>Сегодня</span><b>${usageLine(u.today)}</b></div>
-      <div class="up-row"><span>За всё время</span><b>${usageLine(u.total)}</b></div>
-      <div class="up-row"><span>Остаток</span><b id="upBal">${llmCheck ? balanceText(llmCheck) : "…"}</b></div>
-      <button type="button" class="up-more" id="upMore">Модель и лимиты</button>`;
-      $("upMore").addEventListener("click", () => openSettings("model")); };
-    draw();
-    if (!llmCheck || Date.now() - llmCheck.at > 300000) { try { await checkLlm(); } catch (_) { llmCheck = { ok: false, at: Date.now() }; } if (!pop.hidden) draw(); }
+    pop.hidden = false; $("usageBtn").setAttribute("aria-expanded", "true");
+    pop.classList.remove("swap"); paintUsage(pop, acct, usageLast, "enter");
+    const key = (a, u) => JSON.stringify([a && a.balance, a && a.model, u && u.today.tokens, u && u.total.tokens]);
+    const before = key(acct, usageLast), had = !!(acct && acct.balance);
+    const [u] = await Promise.all([api("/api/usage").catch(() => usageLast), loadAcct()]);
+    usageLast = u;
+    if (pop.hidden || usageClose || key(acct, usageLast) === before) return;
+    paintUsage(pop, acct, usageLast, had ? "quiet" : "swap");
   });
   document.addEventListener("click", (e) => { if (!$("usagePop").hidden && !e.target.closest(".usage-wrap")) closeUsage(); });
+  if (matchMedia("(hover: hover) and (pointer: fine)").matches) {
+    const wrap = $("usageBtn").closest(".usage-wrap"); let hoverT, hoverOpen = false;
+    wrap.addEventListener("mouseenter", () => { clearTimeout(hoverT); if ($("usagePop").hidden && !root.classList.contains("rail"))
+      hoverT = setTimeout(() => { if (!$("usagePop").hidden) return; hoverOpen = true; $("usageBtn").dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 1 })); }, 260); });
+    wrap.addEventListener("mouseleave", () => { clearTimeout(hoverT); if (hoverOpen) hoverT = setTimeout(() => { hoverOpen = false; closeUsage(); }, 320); });
+    $("usageBtn").addEventListener("pointerdown", () => { clearTimeout(hoverT); hoverOpen = false; }, true);   // клик закрепляет окно
+  }
 
   // =================== тема ===================
   // Набор CBR без правок живёт в app.css. Любой другой набор или свой цвет: токены считаются из трёх цветов и ставятся поверх.
@@ -1358,7 +1707,7 @@
   }
   function applyColors() {
     const all = { dark: themeVars("dark"), light: themeVars("light") }, v = all[root.dataset.theme] || {};
-    [...root.style].filter((k) => k.startsWith("--")).forEach((k) => root.style.removeProperty(k));
+    [...root.style].filter((k) => k.startsWith("--") && k !== "--side").forEach((k) => root.style.removeProperty(k));
     Object.keys(v).forEach((k) => root.style.setProperty(k, v[k]));
     try { if (all.dark || all.light) localStorage.setItem("msa_vars", JSON.stringify(all)); else localStorage.removeItem("msa_vars"); } catch (_) {}
   }

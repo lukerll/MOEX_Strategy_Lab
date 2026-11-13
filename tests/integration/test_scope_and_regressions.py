@@ -72,3 +72,24 @@ def test_future_period_with_trading_wording(agent, repo):
 def test_ticker_without_strategy_asks_for_strategy(agent, text):
     r = agent.handle(None, text)
     assert r.intent == "clarify" and r.suggestions == ["SMA 20/50", "RSI 14 30/70", "купить и держать"]
+
+
+@pytest.mark.parametrize("text,name", [
+    ("Тогда давай купил акции Apple в 2021 году и продал их в 2025 году", "Apple"),
+    ("Я про акции Apple ты уверен что написал правильно?", "Apple"),
+    ("тесла SMA 20/50 за 2024", "Tesla"),
+    ("купить биткоин и держать", "Криптовалюты"),
+])
+def test_foreign_security_is_explained_by_code(agent, fake_llm, text, name):
+    r = agent.handle(None, text)
+    assert r.intent == "unsupported" and "foreign_security" in r.flags and r.run_id is None
+    assert name in r.text and "ISS" not in r.text and "TQBR" not in r.text
+    assert fake_llm.requests == []
+    for s in r.suggestions:                        # готовые ответы агент гарантированно понимает
+        assert agent.handle(None, s).run_id, s
+
+
+@pytest.mark.parametrize("text", ["сбер SMA 20/50 за 2024", "газпром, купить и держать", "МТС RSI 14", "интер рао SMA 20/50"])
+def test_russian_stocks_are_not_taken_for_foreign(text):
+    from moex_strategy_agent.agent.scope import foreign_name
+    assert foreign_name(text) is None

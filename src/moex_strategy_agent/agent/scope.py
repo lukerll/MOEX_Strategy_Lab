@@ -2,7 +2,8 @@
 
 Модель формализует стратегию, но не решает, что агенту разрешено. Здесь только то,
 чего нет в языке правил: короткие позиции, внутридневные свечи, прогнозы нейросетью,
-несколько бумаг в одном запросе. Агент не подменяет такой запрос похожим.
+несколько бумаг в одном запросе,
+иностранные акции и криптовалюта. Агент не подменяет такой запрос похожим.
 """
 from __future__ import annotations
 
@@ -47,6 +48,29 @@ OFFERS: dict[str, tuple[str, str]] = {
                             "да, на дневных свечах"),
 }
 
+# Бумаги, которых нет в основном режиме торгов Мосбиржи: агент берёт котировки только оттуда.
+# Название в ответе, затем шаблон по нормализованному тексту.
+FOREIGN: list[tuple[str, str]] = [
+    ("Apple", r"\bapple\b|эппл|эпл\b|\baapl\b"), ("Tesla", r"\btesla\b|тесл[аыу]|\btsla\b"),
+    ("Microsoft", r"microsoft|майкрософт|\bmsft\b"), ("Amazon", r"\bamazon\b|амазон|\bamzn\b"),
+    ("Google", r"\bgoogle\b|гугл|alphabet|\bgoogl?\b"), ("Nvidia", r"nvidia|нвидиа|\bnvda\b"),
+    ("Meta", r"facebook|фейсбук|meta platforms|\bmeta\b"), ("Netflix", r"netflix|нетфликс|\bnflx\b"),
+    ("Alibaba", r"alibaba|алибаба|\bbaba\b"), ("Coca-Cola", r"coca.?cola|кока.?кол"),
+    ("Boeing", r"\bboeing\b|боинг"), ("Intel", r"\bintel\b|\bинтел\b"), ("AMD", r"\bamd\b"),
+    ("индекс S&P 500", r"s&p|\bsp ?500\b|\bspx\b|\bspy\b"), ("Nasdaq", r"nasdaq|насдак|\bqqq\b"),
+    ("криптовалюта", r"биткоин|биткойн|bitcoin|\bbtc\b|эфириум|ethereum|\beth\b|крипт"),
+]
+FOREIGN_OPTIONS = ["Сбербанк, купить и держать", "Яндекс, купить и держать", "Лукойл, купить и держать"]
+
+
+def foreign_name(text: str) -> str | None:
+    low = _norm(text)
+    for name, pat in FOREIGN:
+        if re.search(pat, low):
+            return name
+    return None
+
+
 _VENUE = re.compile(r"(данн\w*|на|с|котировк\w*|истори\w*)\s+(мосбирж\w*|московск\w+ бирж\w*|moex)"
                     r"|moex\s+iss|мосбирж\w*\s+iss", re.IGNORECASE)
 
@@ -77,6 +101,9 @@ def find_tickers(text: str) -> list[str]:
 
 def scope_check(text: str) -> dict[str, Any]:
     low = _norm(text)
+    name = foreign_name(text)
+    if name:
+        return {"kind": "foreign", "name": name}
     for pat, name, nearest in UNSUPPORTED:
         if re.search(pat, low):
             return {"kind": "unsupported", "name": name, "nearest": nearest, "offer": OFFERS.get(name)}
@@ -94,6 +121,8 @@ def scope_hint(text: str) -> str | None:
     if sc.get("kind") == "unsupported":
         name = sc["name"][0].upper() + sc["name"][1:]
         return f"{name} не поддерживаю. Вместо этого: {sc['nearest']}."
+    if sc.get("kind") == "foreign":
+        return "Только российские акции с Мосбиржи, иностранных бумаг и криптовалюты здесь нет."
     if sc.get("kind") == "multi":
         return f"По одной бумаге за запрос, а здесь {sc['what'].removeprefix('бумаги: ')}."
     return None

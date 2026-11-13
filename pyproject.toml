@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "moex-strategy-agent"
-version = "0.1.0"
+version = "1.0.0"
 description = "ИИ-агент для формализации и бэктестинга торговых стратегий на данных Московской биржи"
 readme = "README.md"
 requires-python = ">=3.11"

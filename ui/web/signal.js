@@ -36,8 +36,27 @@
   .sg[data-state="success"] .sg-ring-glow { opacity: 1; }
   .sg[data-state="success"] .sg-ball-glow { opacity: 1; }
 
-  @keyframes sg-bob { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-4px) rotate(-1.2deg); } }
-  @keyframes sg-blink { 0%, 93%, 100% { transform: scaleY(1); } 95.5% { transform: scaleY(.08); } }
+  /* дыхание, антенна, блик на стекле, слежение за курсором, искры */
+  .sg .sg-ant { transform-origin: 112px 46px; animation: sg-sway 5.2s ease-in-out infinite; }
+  .sg .sg-track { transition: transform .35s cubic-bezier(.22,1,.36,1); }
+  .sg .sg-sheen { animation: sg-sheen 7s ease-in-out infinite; }
+  .sg .sg-sparks .sp { opacity: 0; transform-box: fill-box; transform-origin: center; }
+  .sg[data-state="thinking"] .sg-ant { animation: sg-sway 1.3s ease-in-out infinite; }
+  .sg[data-state="thinking"] .sg-ring-glow { animation: sg-glow 1.1s ease-in-out infinite; }
+  .sg[data-state="thinking"] .sg-float { animation: sg-bob 2.4s ease-in-out infinite; }
+  .sg[data-state="success"] .sg-sparks .sp { animation: sg-spark .9s cubic-bezier(.22,1,.36,1) both; }
+  .sg[data-state="success"] .sg-sparks .s2 { animation-delay: .12s; } .sg[data-state="success"] .sg-sparks .s3 { animation-delay: .22s; }
+  .sg[data-state="success"] .sg-ant { animation: sg-sway .5s ease-in-out 3; }
+  .sg:not(.sg-mini)[data-state="idle"]:hover .e-smile { opacity: 0; transform: scale(.6); }
+  .sg:not(.sg-mini)[data-state="idle"]:hover .e-joy { opacity: 1; transform: none; }
+  .sg:not(.sg-mini)[data-state="idle"]:hover .sg-ring-glow { opacity: .8; }
+  .sg:not(.sg-mini) { cursor: default; }
+  .sg-mini .sg-sheen, .sg-mini .sg-sparks { display: none; }
+  @keyframes sg-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(4deg); } }
+  @keyframes sg-sheen { 0%, 78% { opacity: 0; transform: skewX(-18deg) translateX(0); } 82% { opacity: .22; } 92% { opacity: .12; } 96%, 100% { opacity: 0; transform: skewX(-18deg) translateX(110px); } }
+  @keyframes sg-spark { 0% { opacity: 0; transform: scale(.2) rotate(-30deg); } 35% { opacity: 1; transform: scale(1.15) rotate(10deg); } 100% { opacity: 0; transform: scale(.6) translateY(-10px) rotate(30deg); } }
+  @keyframes sg-bob { 0%, 100% { transform: translateY(0) rotate(0deg) scale(1); } 50% { transform: translateY(-4px) rotate(-1.2deg) scale(1.012); } }
+  @keyframes sg-blink { 0%, 46%, 50%, 91%, 100% { transform: scaleY(1); } 48% { transform: scaleY(.08); } 93% { transform: scaleY(.08); } 95% { transform: scaleY(1); } 97% { transform: scaleY(.08); } }
   @keyframes sg-look { 0%, 100% { transform: translateX(0); } 30% { transform: translateX(-3px); } 65% { transform: translateX(3px); } }
   @keyframes sg-orbit { to { stroke-dashoffset: -400; } }
   @keyframes sg-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
@@ -46,6 +65,7 @@
     55% { transform: translateY(0) scale(1.03, .97); } 75% { transform: translateY(-4px); } 100% { transform: translateY(0); } }
 
   @media (prefers-reduced-motion: reduce) {
+    .sg .sg-ant, .sg .sg-sheen, .sg .sg-sparks .sp, .sg[data-state] .sg-ant, .sg[data-state] .sg-ring-glow, .sg[data-state] .sg-sparks .sp,
     .sg .sg-float, .sg .sg-eyes, .sg .sg-orbit, .sg .sg-ball, .sg .sg-ball-glow,
     .sg[data-state] .sg-float, .sg[data-state] .sg-eyes, .sg[data-state] .sg-ball, .sg[data-state] .sg-ball-glow { animation: none !important; }
   }`;
@@ -111,11 +131,13 @@
       <ellipse cx="110" cy="110" rx="100" ry="30" fill="none" stroke="url(#${u("ring")})" stroke-width="1.4" opacity=".55"/>
     </g>
 
-    <!-- антенна -->
+    <!-- антенна: покачивается от основания -->
+    <g class="sg-ant">
     <path d="M112 46 C 113 34, 121 27, 127 22" fill="none" stroke="#1d4636" stroke-width="4" stroke-linecap="round"/>
     <path d="M112 46 C 113 34, 121 27, 127 22" fill="none" stroke="#7affb4" stroke-opacity=".35" stroke-width="1.2" stroke-linecap="round"/>
     <circle class="sg-ball-glow" cx="128" cy="19" r="11" fill="#7affb4" filter="url(#${u("soft")})"/>
     <circle class="sg-ball" cx="128" cy="19" r="6.5" fill="url(#${u("ball")})"/>
+    </g>
 
     <!-- корпус-голова -->
     <ellipse cx="110" cy="104" rx="72" ry="58" fill="url(#${u("shell")})"/>
@@ -137,7 +159,7 @@
     </g>
 
     <!-- глаза: три выражения одной модели -->
-    <g class="sg-eyes" filter="url(#${u("glow")})" fill="none" stroke="#7affb4" stroke-linecap="round">
+    <g class="sg-track"><g class="sg-eyes" filter="url(#${u("glow")})" fill="none" stroke="#7affb4" stroke-linecap="round">
       <g class="sg-eye e-smile" stroke-width="4.2">
         <path d="M94 108 Q 102 97, 110 108"/><path d="M126 108 Q 134 97, 142 108"/>
       </g>
@@ -147,6 +169,16 @@
       <g class="sg-eye e-joy" stroke-width="4.6">
         <path d="M92 108 Q 102 92, 112 108"/><path d="M124 108 Q 134 92, 144 108"/>
       </g>
+    </g></g>
+
+    <!-- блик пробегает по стеклу -->
+    <g clip-path="url(#${u("plate")})"><rect class="sg-sheen" x="60" y="60" width="16" height="90" fill="#e3ffef" opacity="0" transform="skewX(-18)"/></g>
+
+    <!-- искры успеха -->
+    <g class="sg-sparks" fill="#e3ffef">
+      <path class="sp s1" d="M40 44 l2.2 6 6 2.2 -6 2.2 -2.2 6 -2.2 -6 -6 -2.2 6 -2.2z"/>
+      <path class="sp s2" d="M176 40 l1.8 5 5 1.8 -5 1.8 -1.8 5 -1.8 -5 -5 -1.8 5 -1.8z"/>
+      <path class="sp s3" d="M196 84 l1.4 4 4 1.4 -4 1.4 -1.4 4 -1.4 -4 -4 -1.4 4 -1.4z"/>
     </g>
 
     <!-- кольцо: передняя половина поверх корпуса, по ней бежит светящийся штрих -->
@@ -184,6 +216,20 @@
       },
     };
     api.setState(opts.state || "idle");
+    if (size >= 80 && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const track = el.querySelector(".sg-track"); let raf = 0;
+      const onMove = (e) => {
+        if (raf || !el.isConnected) { if (!el.isConnected) document.removeEventListener("pointermove", onMove); return; }
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          const r = el.getBoundingClientRect(); if (!r.width) return;
+          const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1;
+          const k = Math.min(1, d / 320);                              // чем дальше курсор, тем сильнее взгляд, но не больше 7 единиц
+          track.style.transform = `translate(${(dx / d * 7 * k).toFixed(1)}px, ${(dy / d * 4.5 * k).toFixed(1)}px)`;
+        });
+      };
+      document.addEventListener("pointermove", onMove, { passive: true });
+    }
     return api;
   }
 
