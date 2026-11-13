@@ -11,7 +11,7 @@
 <text x="394.0" y="176.0" text-anchor="middle" font-size="15" fill="#534AB7">Граф, промпты, охрана</text>
 <rect x="518" y="106" width="204" height="104" rx="14" fill="#EEEDFE" stroke="#534AB7" stroke-width="1"/>
 <text x="620.0" y="154.0" text-anchor="middle" font-size="22" font-weight="600" fill="#3C3489">llm/</text>
-<text x="620.0" y="176.0" text-anchor="middle" font-size="15" fill="#534AB7">Клиент и аккаунт GigaChat</text>
+<text x="620.0" y="176.0" text-anchor="middle" font-size="15" fill="#534AB7">Клиент, аккаунт, модели</text>
 <rect x="744" y="106" width="204" height="104" rx="14" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
 <text x="846.0" y="154.0" text-anchor="middle" font-size="22" font-weight="600" fill="#3D3D3A">persistence/</text>
 <text x="846.0" y="176.0" text-anchor="middle" font-size="15" fill="#5F5E5A">SQLite</text>
