@@ -41,7 +41,7 @@
 <text x="472.25" y="488.0" text-anchor="middle" font-size="15" fill="#5F5E5A">Провайдер, лимиты</text>
 <rect x="631.0" y="418" width="273.5" height="104" rx="14" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
 <text x="767.75" y="466.0" text-anchor="middle" font-size="22" font-weight="600" fill="#3D3D3A">tests/ и evals/</text>
-<text x="767.75" y="488.0" text-anchor="middle" font-size="15" fill="#5F5E5A">259 тестов, 38 сценариев</text>
+<text x="767.75" y="488.0" text-anchor="middle" font-size="15" fill="#5F5E5A">262 теста, 38 сценариев</text>
 <rect x="926.5" y="418" width="273.5" height="104" rx="14" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="1"/>
 <text x="1063.25" y="466.0" text-anchor="middle" font-size="22" font-weight="600" fill="#3D3D3A">scripts/</text>
 <text x="1063.25" y="488.0" text-anchor="middle" font-size="15" fill="#5F5E5A">Проверки связи, кеш</text>

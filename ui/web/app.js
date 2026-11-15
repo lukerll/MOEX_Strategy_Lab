@@ -307,6 +307,7 @@
       ["redo", "Повторить с правками", "i-redo"],
       ["html", "Скачать отчёт HTML", "i-file"],
       ["csv", "Скачать сделки CSV", "i-table"],
+      ["chat", "Скачать выгрузку чата", "i-chat"],
       favRec ? ["unfav", "Убрать из избранного", "i-star-fill"] : ["fav", "В избранное", "i-star"],
       ...(state.list === "fav" ? [] : [["del", "Удалить из истории", "i-trash"]]),
     ];
@@ -335,6 +336,7 @@
         }
         if (act === "html") download(`/api/runs/${runId}/report.html?download=true`);
         if (act === "csv") download(`/api/runs/${runId}/trades.csv`);
+        if (act === "chat") download(`/api/runs/${runId}/chat.md`);
         if (act === "fav" && await humanAction(() => api(`/api/runs/${runId}/save`, { method: "POST", body: JSON.stringify({ session_id: sid() }) }))) { await loadSide(); refreshStars(); }
         if (act === "unfav" && await humanAction(() => api(`/api/research/${favRec.id}/delete?session_id=${sid()}`, { method: "POST" }))) { await loadSide(); refreshStars(); }
         if (act === "del" && await humanAction(() => api(`/api/runs/${runId}/delete?session_id=${sid()}`, { method: "POST" }))) { forgetRun(runId); loadSide(); }
@@ -1392,7 +1394,9 @@
         </details>`;
     },
     data: () => `<div class="set-row"><span class="set-l">История запусков<small>Избранное останется. Действие нельзя отменить</small></span>
-        <button class="btn-ghost btn-sm" type="button" id="clearBtn">Очистить историю</button></div>`,
+        <button class="btn-ghost btn-sm" type="button" id="clearBtn">Очистить историю</button></div>
+      <div class="set-row"><span class="set-l">Выгрузка текущего чата<small>Markdown с репликами и шагами агента, удобно отдать другой модели на разбор</small></span>
+        <button class="btn-ghost btn-sm" type="button" id="chatExportBtn">Скачать</button></div>`,
     how: () => `<p class="how-lead">Вы описываете стратегию обычными словами, агент переводит её в строгие правила,
         проверяет на истории Мосбиржи и объясняет результат. Модель отвечает за понимание и объяснение, считает только код, решения принимает человек.</p>
       <ol class="how-steps">
@@ -1485,6 +1489,7 @@
       catch (err) { $("checkOut").textContent = "Проверка не удалась: " + err.message; }
       b.disabled = false;
     });
+    if (id === "data") $("chatExportBtn").addEventListener("click", () => download(`/api/sessions/${sid()}/export.md`));
     if (id === "data") $("clearBtn").addEventListener("click", async () => {
       try {
         if (await humanAction(() => api(`/api/history/clear?session_id=${sid()}`, { method: "POST" }))) { state.runs.clear(); await loadSide(); closeDrawers(); newAnalysis(); }

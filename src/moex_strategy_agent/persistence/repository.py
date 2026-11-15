@@ -56,6 +56,10 @@ class Repository:
         rows = self.db.query("SELECT result_json FROM runs WHERE id=?", (run_id,))
         return BacktestResult.model_validate_json(rows[0]["result_json"]) if rows else None
 
+    def run_session(self, run_id: str) -> str | None:
+        rows = self.db.query("SELECT session_id FROM runs WHERE id=?", (run_id,))
+        return rows[0]["session_id"] if rows else None
+
     def list_runs(self, limit: int = 20, session_id: str | None = None) -> list[dict[str, Any]]:
         sql = "SELECT id, session_id, title, status, created_at, result_json FROM runs"
         params: tuple = ()

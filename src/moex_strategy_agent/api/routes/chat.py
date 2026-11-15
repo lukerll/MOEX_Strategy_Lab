@@ -5,18 +5,20 @@ import json
 import queue
 import threading
 import time
+from datetime import datetime
 from typing import Iterator, Literal
 
 import httpx
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from ...agent.brain import LLMGateway
 from ...agent.graph import MODEL_UNAVAILABLE_BY_KIND
 from ...agent.scope import scope_hint
 from ...llm.provider import LLMError, _net_kind, build_client
+from ...reporting.chat_export import build_chat_markdown
 from ..deps import Services, services
 
 router = APIRouter(prefix="/api", tags=["Диалог с агентом"])
@@ -83,6 +85,19 @@ def chat_stream(body: ChatIn, svc: Services = Depends(services)) -> StreamingRes
 def messages(session_id: str, svc: Services = Depends(services)) -> dict:
     return {"session_id": session_id, "messages": svc.repo.messages(session_id),
             "pending": svc.repo.open_pending(session_id), "state": svc.repo.get_state(session_id)}
+
+
+@router.get("/sessions/{session_id}/export.md", summary="Выгрузка диалога",
+            description="Весь диалог в Markdown: реплики, распознанное намерение, кнопки ответа, итоги запусков и шаги агента. Удобно отдать другой модели на разбор.")
+def export_chat(session_id: str, svc: Services = Depends(services)) -> Response:
+    return _chat_file(svc, session_id)
+
+
+def _chat_file(svc: Services, session_id: str) -> Response:
+    md = build_chat_markdown(svc.repo, session_id)
+    name = f"chat_{session_id}_{datetime.now():%Y%m%d_%H%M}.md"
+    return Response(md, media_type="text/markdown; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 @router.post("/actions/{action_id}/confirm", summary="Подтвердить действие",
